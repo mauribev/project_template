@@ -1,0 +1,57 @@
+# ========================
+# 1. DATA (CRITICAL)
+# ========================
+03_data/
+
+# ========================
+# 2. PYTHON ENVIRONMENTS
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+.ipynb_checkpoints/
+
+# ========================
+# 3. R ENVIRONMENTS
+# ========================
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+
+# ========================
+# 4. OS & SYSTEM FILES
+# ========================
+.DS_Store
+Thumbs.db
+
+# Microsoft Office lock files (created while a workbook is open)
+~$*.xlsx
+~$*.xls
+~$*.docx
+~$*.doc
+~$*.pptx
+
+# ========================
+# 6. AUTO-GENERATED BACKUPS
+# ========================
+# Master scripts auto-backup human-edited workbooks before re-rendering.
+# The workbook itself is tracked in git; per-run snapshots are not.
+02_survey_tools/01_quant_tools/_backups/
+
+# ========================
+# 5. CLAUDE HIDDEN FILES
+# ========================
+# Ignore all private session logs, cache, local settings, and memory
+.claude/*
+
+# Whitelist the AI architecture to share with the team
+!.claude/skills/
+!.claude/agents/
+!.claude/rules/
+!.claude/hooks/
+!.claude/commands/
+!.claude/settings.json

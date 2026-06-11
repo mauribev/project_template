@@ -1,0 +1,324 @@
+---
+title: "Diagnostic Template — Standard Section Pattern"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    self-contained: true
+    theme: cosmo
+    code-fold: true
+    code-tools: false
+    df-print: paged
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{=html}
+<!--
+=============================================================================
+INSTRUCTIONS FOR HUMANS AND AI — READ BEFORE EDITING
+=============================================================================
+
+This file is a REFERENCE TEMPLATE. Do NOT edit it as part of a pipeline run.
+Copy the section pattern below into your diagnostic .qmd and adapt.
+
+Every section follows the same three-part structure:
+
+  1. FIXED INTRO PROSE
+       Hardcoded plain text. Deterministic. Describes:
+         (a) WHAT the section does
+         (b) WHAT the output is (table, figure, list, etc.)
+         (c) HOW to interpret it / what to look for
+       AI agents must NOT rewrite this text during pipeline runs. It should
+       only change when the section itself changes, via explicit human edit.
+
+  2. DYNAMIC STATS (R chunk)
+       R code that computes stats and renders a table or figure. The
+       narrative around it uses inline knit expressions (e.g.
+       `{r} n_flagged`) so numbers stay in sync with the data.
+       Deterministic — no AI generation at runtime.
+
+  3. OPTIONAL COMMENTARY BLOCK
+       A VISIBLE Quarto callout block of the form:
+
+         :::{.callout-note title="🤖 AI Commentary"}
+         *Edited YYYY-MM-DD by <author>.*
+
+         <interpretive prose>
+         :::
+
+       Renders in the HTML as a tinted, badged box so the reader can
+       immediately tell which prose is interpretive (and possibly AI-
+       generated) vs which is the deterministic intro / stats. A human
+       or AI may write inside this block; outside it, the intro and the
+       dynamic stats are off-limits.
+
+KEY RULES FOR AI COMMENTARY
+  - Only write inside `:::{.callout-note title="🤖 AI Commentary"} ... :::`
+    blocks. Never edit the intro prose, the R chunk, or the table/figure.
+  - Update the "Edited YYYY-MM-DD by <author>" line every time you touch
+    the block. <author> is the model name (e.g. "Claude Opus 4.7") for AI
+    edits, or the person's name for human edits.
+  - Base every claim on the dynamic-stats output above. Never invent
+    numbers; never reference data the chunk did not produce.
+  - Flag surprising or anomalous patterns; do not restate what the table
+    already shows.
+  - If nothing useful to add, OMIT the callout block entirely rather than
+    leaving an empty one — an empty callout still renders a box.
+
+=============================================================================
+-->
+```
+
+```{r setup}
+#| label: setup
+#| include: false
+
+# This setup chunk sources the project paths. Every diagnostic .qmd should
+# open with an equivalent setup chunk. Keep it minimal; package loading and
+# data reads belong in later chunks so that each section is inspectable on
+# its own.
+
+if (requireNamespace("here", quietly = TRUE)) {
+  source(here::here("04_scripts", "00_setup_paths.R"))
+}
+
+pacman::p_load(dplyr, tidyr, reactable, htmltools)
+```
+
+# Template Diagnostic
+
+This document is a **template**. Replace this header paragraph with a
+one-paragraph summary of the diagnostic: what data it inspects, what the
+reader should learn, and which downstream decisions depend on it. Keep it
+short — the per-section intros below are where the detail lives.
+
+---
+
+## 1. Example Section — Pattern Demonstration
+
+```{=html}
+<!--
+=============================================================================
+SECTION INTRO — FIXED PROSE (do not regenerate during pipeline runs)
+=============================================================================
+-->
+```
+
+**What this section does.** This section scans the XLSForm dictionary and
+reports the count of questions of each type (`select_one`,
+`select_multiple`, `integer`, etc.). It exists so the reader can sanity-
+check the form's overall shape before drilling into individual questions.
+
+**Output.** A table with two columns: *Question type* and *Count*. Rows are
+sorted by count descending.
+
+**How to interpret.** Large counts of `calculate` questions indicate
+heavy derived-variable use in the form. `select_multiple` counts tell you
+how many parents will expand into child variables in the data. A small
+number of `integer` / `decimal` questions relative to overall size usually
+means most quantitative work happens in `calculate` fields.
+
+```{r example-stats}
+#| label: example-stats
+
+# DYNAMIC STATS CHUNK
+# Replace this with the actual computation. Everything shown here is
+# placeholder to illustrate the pattern.
+#
+# Guardrails:
+#   - Compute stats from a single, explicit data source.
+#   - Use inline expressions in the surrounding text for any number that
+#     should update with the data (e.g. `{r} nrow(type_counts)`).
+#   - Do not embed narrative in this chunk; narrative belongs in the intro
+#     above and in the COMMENTARY block below.
+
+type_counts <- tibble::tibble(
+  type  = c("select_one", "calculate", "select_multiple",
+            "integer", "text", "decimal", "note"),
+  count = c(173, 158, 92, 64, 48, 21, 15)
+)
+
+reactable(
+  type_counts,
+  columns = list(
+    type  = colDef(name = "Question type", minWidth = 160),
+    count = colDef(name = "Count", align = "right", minWidth = 80)
+  ),
+  defaultSorted = list(count = "desc"),
+  striped = TRUE,
+  highlight = TRUE,
+  compact = TRUE,
+  bordered = TRUE,
+  defaultPageSize = 15,
+  style = list(fontSize = "0.85rem")
+)
+```
+
+The form has `r sum(type_counts$count)` rows distributed across
+`r nrow(type_counts)` question types. The single most common type is
+**`r type_counts$type[which.max(type_counts$count)]`**
+(`r max(type_counts$count)` rows).
+
+:::{.callout-note title="🤖 AI Commentary"}
+*Edited 2026-04-28 by Claude Opus 4.7 (template placeholder).*
+
+This is the visible-callout pattern for interpretive prose. Replace this
+placeholder with concrete commentary based on the table above, or omit
+the entire `:::{.callout-note ...} ... :::` block if there is nothing
+useful to flag. Keep the "Edited YYYY-MM-DD by <author>" provenance line
+at the top whenever the block is touched.
+:::
+
+---
+
+## 2. Another Example — Variable-Level Table Pattern
+
+```{=html}
+<!--
+=============================================================================
+SECTION INTRO — FIXED PROSE
+=============================================================================
+-->
+```
+
+**What this section does.** Displays per-variable diagnostics (type,
+missingness, special-code counts, range stats) for every variable in the
+dataset, grouped by the XLSForm `group_variable`.
+
+**Output.** A wide table with one row per variable. Group sections
+collapse by default; expand a group to see its variables. Use the filter
+box at the top to jump to a specific variable by name.
+
+**How to interpret.** A high *pct_missing* combined with a non-trivial
+*n_special_codes* count often signals that the variable should have been
+recoded (the special code is treated as a valid numeric value in the min /
+max / mean columns unless it was filtered out). The *min / max / range*
+columns already exclude NA, negatives, and 96 (*other*), so a legitimate
+negative value (e.g. temperature) would require adjusting the filter.
+
+```{r variable-table}
+#| label: variable-table
+
+# DYNAMIC STATS CHUNK
+# Placeholder. Replace with the real validation table builder.
+
+variable_diagnostics <- tibble::tibble(
+  variable     = c("hh_size", "income_total", "age_head"),
+  group        = c("demographics", "income", "demographics"),
+  type         = c("integer", "decimal", "integer"),
+  n            = c(5162, 5162, 5162),
+  pct_missing  = c(0.0, 3.2, 0.1),
+  n_zero       = c(0, 412, 0),
+  n_spec_codes = c(0, 18, 7),
+  min          = c(1, 10, 18),
+  max          = c(28, 50000, 97),
+  mean         = c(6.8, 3420.0, 44.1)
+)
+
+reactable(
+  variable_diagnostics,
+  groupBy = "group",
+  columns = list(
+    variable     = colDef(name = "Variable", minWidth = 150,
+                           sticky = "left"),
+    group        = colDef(name = "Group"),
+    type         = colDef(name = "Type", maxWidth = 90),
+    n            = colDef(name = "N", align = "right"),
+    pct_missing  = colDef(name = "% missing", align = "right",
+                           format = colFormat(digits = 1)),
+    n_zero       = colDef(name = "N zero", align = "right"),
+    n_spec_codes = colDef(name = "N special", align = "right"),
+    min          = colDef(name = "Min", align = "right"),
+    max          = colDef(name = "Max", align = "right"),
+    mean         = colDef(name = "Mean", align = "right",
+                           format = colFormat(digits = 2))
+  ),
+  defaultPageSize = 15,
+  searchable = TRUE,
+  filterable = TRUE,
+  striped = TRUE,
+  highlight = TRUE,
+  compact = TRUE,
+  bordered = TRUE,
+  style = list(fontSize = "0.82rem")
+)
+```
+
+Scanned `r nrow(variable_diagnostics)` variables across
+`r dplyr::n_distinct(variable_diagnostics$group)` groups.
+
+:::{.callout-note title="🤖 AI Commentary"}
+*Edited 2026-04-28 by Claude Opus 4.7 (template placeholder).*
+
+Use this block only when you have concrete anomalies to flag. Do not
+summarise the table — the reader already sees it. Omit the entire block
+if there is nothing useful to add.
+:::
+
+---
+
+## Reference — Styling Conventions
+
+### Tables — always route through the project helper
+
+Every diagnostic table rendered to HTML must go through `make_diagnostic_table()` in `04_scripts/00_setup/01_functions/diagnostic_helpers.R`. **Do not call `reactable::reactable()` or `DT::datatable()` directly with handwritten options.** The helper bakes in the project's display rules so they cannot drift across notebooks.
+
+```r
+source(here::here("04_scripts", "00_setup", "01_functions",
+                   "diagnostic_helpers.R"))
+
+make_diagnostic_table(
+  df,
+  sticky_col      = "xlsform_name",       # NULL = no sticky
+  rows            = 15,                    # default 15; pass a smaller
+                                            # number for tables with tall
+                                            # multi-line cells
+  multi_line_cols = c("label_question", "relevant", "constraint"),
+  column_defs     = list(                  # optional per-col overrides
+    pct_missing = reactable::colDef(
+      name = "pct missing (ml − bl)",
+      cell = combined_cell_formatter(df, "bl_pct_missing",
+                                       "ml_pct_missing", unit = "pp")
+    ),
+    min_values  = reactable::colDef(
+      name = "min (bl, ml)",
+      cell = pair_cell_formatter(df, "bl_min", "ml_min")
+    )
+  )
+)
+```
+
+**Hard rules baked into the helper** (do not re-implement them in the QMD):
+
+- **No pagination** — single scrollable region, ever. The helper sets `pagination = FALSE`.
+- **Default 15 visible rows** — caller passes `rows = N` for taller / shorter tables. Multi-line cells inflate per-row height automatically.
+- **Sticky first column** when `sticky_col` is provided. Picks the most identifier-like column for the table (e.g. `xlsform_name` for variable-level tables, `data_var` for data-side tables, `expected_var` for diff tables).
+- **Multi-line cells** for declared `multi_line_cols`: max 3 lines visible, scroll within the cell for more. Use this for `label_question`, `relevant`, `constraint`, `calculation`, `override_note`, etc.
+- **Compact 0.82rem font, sortable / filterable / searchable** — non-negotiable.
+
+**Caller responsibilities** (the helper does NOT do these):
+
+- **Order the data first.** The helper renders rows in the order given. Section / row ordering is a data-step concern.
+- **Compute structured columns.** For combined-display patterns like *"+5pp (bl: 12% · ml: 17%)"*, compute the underlying numeric (`pct_missing_diff`, `bl_pct_missing`, `ml_pct_missing`) as separate columns. The display string is built deterministically by `combined_cell_formatter()` / `pair_cell_formatter()` from those columns.
+- **Hide siblings.** When you display a combined cell, hide the bl/ml originals via `column_defs[[name]] <- reactable::colDef(show = FALSE)` so they remain available to the cell function but don't take screen space.
+
+### Other styling
+
+- **AI Commentary callouts:** use `:::{.callout-note title="🤖 AI Commentary"} ... :::` for any interpretive prose. The badge makes it visually obvious which text is deterministic vs which may be AI-generated. Always include an "Edited YYYY-MM-DD by <author>" line at the top of the block; omit the block entirely when there is nothing to flag.
+
+---
+
+## Reference — Intro-paragraph checklist
+
+Every section must answer these three questions in the intro prose:
+
+1. **What** does this section do? (one sentence, plain language)
+2. **What** is the output? (table, figure, count, list — be specific)
+3. **How** do I read it? (what pattern indicates a problem; what is
+   normal; which downstream decision depends on this)
+
+If you cannot write a two-sentence answer to any of these, the section is
+not ready to ship.

@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.36">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Produces a thorough, stand-alone review of one or more already-converted Markdown documents. Uses structural (heading-based) chunking and a sequential Refine pattern to preserve cross-section coherence and prevent context degradation. When multiple documents are provided, reviews them one at a time. Requires a pre-existing .md file — use the doc-to-md skill first if starting from a PDF or Word document.">
+
+<title>skill</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="SKILL_files/libs/clipboard/clipboard.min.js"></script>
+<script src="SKILL_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="SKILL_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="SKILL_files/libs/quarto-html/popper.min.js"></script>
+<script src="SKILL_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="SKILL_files/libs/quarto-html/anchor.min.js"></script>
+<link href="SKILL_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="SKILL_files/libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="SKILL_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="SKILL_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="SKILL_files/libs/bootstrap/bootstrap-138a6193a3bd40baf1e627da441a4734.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+
+
+
+<section id="document-review-pipeline" class="level1">
+<h1>Document Review Pipeline</h1>
+<p>You are executing a rigorous document review pipeline. Read this file in full before taking any action.</p>
+<blockquote class="blockquote">
+<p><strong>Why this pipeline is designed the way it is:</strong> LLMs suffer from a “Lost in the Middle” attention bias (Liu et al., 2024 — content in the middle of a long context is systematically underweighted), context rot (attention quality degrades as the context window fills), and hallucination under pressure (fabricated details when content is partially lost). This pipeline addresses all three by: (1) processing one section at a time so every section is at the beginning of its own inference call, (2) using the output file as running memory rather than carrying raw document text forward, and (3) applying the Refine pattern so every section is processed with full awareness of what was read before. See <code>KNOWLEDGE_BASE.md</code> in this skill folder for the full research rationale.</p>
+</blockquote>
+<hr>
+<section id="orchestrator-handoff-protocol" class="level2">
+<h2 class="anchored" data-anchor-id="orchestrator-handoff-protocol">Orchestrator Handoff Protocol</h2>
+<blockquote class="blockquote">
+<p><strong>⛔ THIS SECTION IS FOR THE ORCHESTRATOR (parent agent), NOT the forked skill agent.</strong></p>
+<p>This skill uses <code>context: fork</code>. The forked agent cannot talk to the user directly — its output is relayed by the orchestrator. To prevent information loss at the handoff boundary:</p>
+<ol type="1">
+<li><strong>RELAY VERBATIM:</strong> When the forked agent returns output containing a chunk plan table, confirmation questions, or any content marked with <code>⛔ RELAY VERBATIM</code>, the orchestrator MUST show it to the user <strong>as-is</strong>. Do not summarize, compress, or paraphrase.</li>
+<li><strong>USE SendMessage:</strong> After the user confirms the chunk plan, the orchestrator MUST use <code>SendMessage</code> to continue the <strong>same forked agent</strong> (using its returned agent ID). Do NOT launch a new general-purpose agent. The forked agent has the SKILL.md context, the chunk plan, and the user’s decisions — a new agent has none of these.</li>
+<li><strong>PLAN FILE AS SAFETY NET:</strong> If SendMessage fails for any reason, the forked agent will have written a plan file to disk. A new agent can recover by reading the plan file + this SKILL.md. But this is a fallback — SendMessage is the preferred path.</li>
+</ol>
+</blockquote>
+<hr>
+</section>
+<section id="inputs" class="level2">
+<h2 class="anchored" data-anchor-id="inputs">Inputs</h2>
+<p>Confirm the following before proceeding:</p>
+<ol type="1">
+<li><p><strong>Target file(s):</strong> One or more <code>.md</code> file paths provided by the user. These must already exist — this skill does not convert documents. If the <code>.md</code> file does not exist, stop and tell the user to run the <code>doc-to-md</code> skill first.</p></li>
+<li><p><strong>Output directory:</strong> The base review directory. Default: <code>06_workspace/03_document_review/</code>. The skill creates artifact-type subfolders inside this directory automatically (see Folder Structure below). Use the default unless the user specifies otherwise.</p></li>
+<li><p><strong>Focus area (optional):</strong> What to extract from each document. If the user does not specify, use the <strong>default comprehensive focus</strong>: &gt; <em>Purpose &amp; Context → Methodology &amp; Design → Key Variables &amp; Indicators → Data Sources &amp; Sampling → Main Findings → Limitations → Open Questions &amp; Decisions</em></p>
+<p>The focus area is an <strong>analytical lens</strong> — it guides what to pay attention to while reading, not the structure of the output. Tell the user upfront: <em>“I will use the default comprehensive focus unless you specify a different angle (e.g., ‘sampling strategy only’ or ‘indicator construction’).”</em></p></li>
+<li><p><strong>Review structure (optional):</strong> The user may specify a section outline or reference a template file for the final <code>_review</code> document. This is asked actively during Phase 0. If no structure is given, the review is organized thematically by content.</p></li>
+<li><p><strong>Evidence extraction (optional):</strong> Whether to extract key verbatim quotes into a separate <code>_evidence.md</code> file. This is asked actively during Phase 0. If yes, quotes are extracted during Phase 2 and verified programmatically in Phase 2.5.</p></li>
+</ol>
+<hr>
+</section>
+<section id="folder-structure" class="level2">
+<h2 class="anchored" data-anchor-id="folder-structure">Folder Structure</h2>
+<p>All artifacts are organized by type inside the base review directory. <strong>The skill must create these subdirectories if they do not exist.</strong></p>
+<pre><code>&lt;base_review_dir&gt;/
+├── 01_sources/          # Converted .md files (created by doc-to-md)
+├── 02_plans/            # Chunk plans (YAML)
+├── 03_notes/            # Section-by-section notes + evidence files (if enabled)
+├── 04_reviews/          # Thematic synthesis reviews
+├── 05_synthesis/        # Cross-document analysis (by theme, not by doc)
+└── registry.csv         # Master index: doc → all artifacts + status</code></pre>
+<blockquote class="blockquote">
+<p><strong>Why artifact-type folders:</strong> This is the dominant model across systematic review tools (Covidence, EPPI-Reviewer), research data management standards (NIH, UK Data Service, ICPSR), QDA software (NVivo, ATLAS.ti), and LLM pipelines (LangChain, LlamaIndex). It enables batch operations, cross-document comparison, and scales to 100+ documents. Per-document folders are rejected by every professional-grade review tool for analytical work. See KNOWLEDGE_BASE.md for full research basis.</p>
+</blockquote>
+<hr>
+</section>
+<section id="naming-convention" class="level2">
+<h2 class="anchored" data-anchor-id="naming-convention">Naming Convention</h2>
+<p><strong>This rule is mandatory and must never be overridden.</strong></p>
+<p>All output filenames share the <strong>same stem</strong> derived from the source filename, with an <strong>artifact-type suffix</strong>:</p>
+<pre><code>&lt;source_stem&gt;_plan.yaml       → 02_plans/
+&lt;source_stem&gt;_notes.md        → 03_notes/
+&lt;source_stem&gt;_review.md       → 04_reviews/
+&lt;source_stem&gt;_evidence.md     → 03_notes/   (lives alongside the notes)</code></pre>
+<p>Where <code>&lt;source_stem&gt;</code> = the source filename <strong>without its extension</strong>, with <strong>spaces replaced by underscores</strong>. No abbreviation. No sequential prefix.</p>
+<p><strong>Example:</strong> - Source: <code>01_sources/BRCiS III Baseline Report_final_shared_2024.07.22.md</code> - Plan: <code>02_plans/BRCiS_III_Baseline_Report_final_shared_2024.07.22_plan.yaml</code> - Notes: <code>03_notes/BRCiS_III_Baseline_Report_final_shared_2024.07.22_notes.md</code> - Evidence: <code>03_notes/BRCiS_III_Baseline_Report_final_shared_2024.07.22_evidence.md</code> - Review: <code>04_reviews/BRCiS_III_Baseline_Report_final_shared_2024.07.22_review.md</code></p>
+<blockquote class="blockquote">
+<p><strong>Why suffix, not prefix:</strong> Sorting by filename groups all artifacts for the same document together. <code>ls *Baseline*</code> shows everything related to one document across folders. The suffix distinguishes artifact type while the stem provides traceability.</p>
+</blockquote>
+<hr>
+</section>
+<section id="multi-document-rule" class="level2">
+<h2 class="anchored" data-anchor-id="multi-document-rule">Multi-Document Rule</h2>
+<p>When the user provides more than one document:</p>
+<ol type="1">
+<li><strong>List all target files</strong> explicitly and confirm the order before starting.</li>
+<li><strong>Complete the full pipeline for document 1</strong> before touching document 2. Never process documents in parallel.</li>
+<li>After all reviews are complete, present a summary table of all output files created.</li>
+<li><strong>Update the registry</strong> after each completed document.</li>
+</ol>
+<blockquote class="blockquote">
+<p><strong>Why sequential:</strong> Parallel agents cause write-permission conflicts even across different output files (confirmed from project experience). Sequential processing also allows learnings from one document to inform how the next is read.</p>
+</blockquote>
+<hr>
+</section>
+<section id="pipeline" class="level2">
+<h2 class="anchored" data-anchor-id="pipeline">Pipeline</h2>
+<section id="phase-0-intake-toc-extraction-confirmation" class="level3">
+<h3 class="anchored" data-anchor-id="phase-0-intake-toc-extraction-confirmation">Phase 0 — Intake, TOC Extraction &amp; Confirmation</h3>
+<ol type="1">
+<li><p><strong>Create folder structure</strong> if it does not exist:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">"&lt;base_dir&gt;/01_sources"</span> <span class="st">"&lt;base_dir&gt;/02_plans"</span> <span class="st">"&lt;base_dir&gt;/03_notes"</span> <span class="st">"&lt;base_dir&gt;/04_reviews"</span> <span class="st">"&lt;base_dir&gt;/05_synthesis"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p>Run <code>wc -l</code> on the target <code>.md</code> file to get the total line count.</p></li>
+<li><p>Extract the heading structure:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-n</span> <span class="st">"^#"</span> <span class="st">"&lt;path_to_md_file&gt;"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p>Build a <strong>chunk plan</strong> — a table showing every top-level section with its start line, end line, and line count. End line of section N = start line of section N+1 minus 1 (last section ends at total line count).</p></li>
+<li><p>Apply the following rules silently, then flag them to the user:</p>
+<ul>
+<li><strong>Sections &gt; 500 lines (~8–10 pages):</strong> Flag as LONG. Propose using the section’s own sub-headings as chunk boundaries. Do not subdivide silently.</li>
+<li><strong>Sections &lt; 80 lines (~1–2 pages):</strong> Flag as SHORT. Propose grouping with the adjacent section. Do not group silently.</li>
+<li><strong>Structural sections</strong> (e.g., “Acronyms”, “References”, “Table of Contents”): Propose skipping unless the user wants them included.</li>
+</ul></li>
+<li><p>Present the chunk plan to the user. <strong>This output must be relayed verbatim by the orchestrator.</strong></p>
+<pre><code>⛔ RELAY VERBATIM — The following chunk plan must be shown to the user as-is.
+
+Document: &lt;filename&gt;
+Total lines: &lt;N&gt;
+Detected focus: &lt;focus area&gt;
+
+| # | Section heading | Start | End | Lines | Flag |
+|---|----------------|-------|-----|-------|------|
+| 1 | Introduction   | 12    | 96  | 85    |      |
+| 2 | Methodology    | 97    | 508 | 412   |      |
+| 3 | Annex I        | 509   | 1131| 623   | ⚠️ LONG — suggest sub-headings |
+| 4 | References     | 1132  | 1176| 45    | ⏭️ Structural — skip? |</code></pre></li>
+<li><p><strong>Ask about review structure and evidence extraction</strong> alongside the chunk plan:</p>
+<blockquote class="blockquote">
+<p><em>“Before I begin:<em> </em>1. Do you want the final review to follow a specific structure or template? If yes, paste the section outline or reference a template file. If no, I’ll organize it thematically based on the content.<em> </em>2. Do you want me to extract key verbatim quotes into a separate evidence file? (Quotes will be programmatically verified against the source for accuracy.)”</em></p>
+</blockquote></li>
+<li><p><strong>Wait for user confirmation</strong> of the chunk plan, review structure, and evidence preference before proceeding. Adjust the plan based on the user’s response.</p></li>
+</ol>
+<hr>
+</section>
+<section id="phase-1-plan-file-output-initialization" class="level3">
+<h3 class="anchored" data-anchor-id="phase-1-plan-file-output-initialization">Phase 1 — Plan File &amp; Output Initialization</h3>
+<p>Once confirmed:</p>
+<ol type="1">
+<li><p>Derive <code>&lt;source_stem&gt;</code> from the source filename (strip extension, spaces → underscores).</p></li>
+<li><p><strong>Write the plan file</strong> (<code>02_plans/&lt;source_stem&gt;_plan.yaml</code>). This is the structural contract — it captures all decisions so any agent can resume from it:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Doc-Review Plan File — do not edit manually</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">source_file</span><span class="kw">:</span><span class="at"> </span><span class="st">"&lt;path to source .md&gt;"</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="fu">source_stem</span><span class="kw">:</span><span class="at"> </span><span class="st">"&lt;derived stem&gt;"</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="fu">base_dir</span><span class="kw">:</span><span class="at"> </span><span class="st">"&lt;base review directory&gt;"</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">focus_area</span><span class="kw">:</span><span class="at"> </span><span class="st">"&lt;focus area&gt;"</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="fu">review_structure</span><span class="kw">:</span><span class="at"> </span><span class="st">"&lt;user-specified structure or 'thematic — content-driven'&gt;"</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="fu">evidence_extraction</span><span class="kw">:</span><span class="at"> true/false</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="fu">date_created</span><span class="kw">:</span><span class="at"> </span><span class="st">"YYYY-MM-DD"</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="fu">chunks</span><span class="kw">:</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">id</span><span class="kw">:</span><span class="at"> </span><span class="dv">1</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">heading</span><span class="kw">:</span><span class="at"> </span><span class="st">"Introduction"</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">start_line</span><span class="kw">:</span><span class="at"> </span><span class="dv">12</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">end_line</span><span class="kw">:</span><span class="at"> </span><span class="dv">96</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">lines</span><span class="kw">:</span><span class="at"> </span><span class="dv">85</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">status</span><span class="kw">:</span><span class="at"> pending</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">id</span><span class="kw">:</span><span class="at"> </span><span class="dv">2</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">heading</span><span class="kw">:</span><span class="at"> </span><span class="st">"Methodology"</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">start_line</span><span class="kw">:</span><span class="at"> </span><span class="dv">97</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">end_line</span><span class="kw">:</span><span class="at"> </span><span class="dv">508</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">lines</span><span class="kw">:</span><span class="at"> </span><span class="dv">412</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">status</span><span class="kw">:</span><span class="at"> pending</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="co">  # ...</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="fu">skipped_sections</span><span class="kw">:</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">heading</span><span class="kw">:</span><span class="at"> </span><span class="st">"References"</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">reason</span><span class="kw">:</span><span class="at"> </span><span class="st">"Structural — user confirmed skip"</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="fu">output_files</span><span class="kw">:</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">notes</span><span class="kw">:</span><span class="at"> </span><span class="st">"03_notes/&lt;stem&gt;_notes.md"</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">review</span><span class="kw">:</span><span class="at"> </span><span class="st">"04_reviews/&lt;stem&gt;_review.md"</span></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">evidence</span><span class="kw">:</span><span class="at"> </span><span class="st">"03_notes/&lt;stem&gt;_evidence.md"</span><span class="co">  # only if evidence_extraction: true</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p><strong>Initialize the notes file</strong> (<code>03_notes/&lt;source_stem&gt;_notes.md</code>):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Section Notes: &lt;Document Title&gt;"</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="an">source_file:</span><span class="co"> "&lt;filename&gt;.md"</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="an">date_reviewed:</span><span class="co"> "&lt;YYYY-MM-DD&gt;"</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="an">analyst:</span><span class="co"> "Claude Code (doc-review skill v1.2)"</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="an">focus_area:</span><span class="co"> "&lt;focus area&gt;"</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="an">total_chunks:</span><span class="co"> &lt;N&gt;</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="fu">## Chunk Plan</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> # <span class="pp">|</span> Section heading <span class="pp">|</span> Start <span class="pp">|</span> End <span class="pp">|</span> Lines <span class="pp">|</span> Status <span class="pp">|</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|----------------|-------|-----|-------|--------|</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 1 <span class="pp">|</span> Introduction   <span class="pp">|</span> 12    <span class="pp">|</span> 96  <span class="pp">|</span> 85    <span class="pp">|</span> pending<span class="pp">|</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> ...                                               <span class="pp">|</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>---</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p><strong>Initialize the evidence file</strong> (only if evidence extraction = yes) (<code>03_notes/&lt;source_stem&gt;_evidence.md</code>):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Evidence File: &lt;Document Title&gt;"</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="an">source_file:</span><span class="co"> "&lt;filename&gt;.md"</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="an">date_reviewed:</span><span class="co"> "&lt;YYYY-MM-DD&gt;"</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="an">analyst:</span><span class="co"> "Claude Code (doc-review skill v1.2)"</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="an">total_quotes:</span><span class="co"> 0</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="an">verified:</span><span class="co"> false</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p><strong>Initialize the review file</strong> (<code>04_reviews/&lt;source_stem&gt;_review.md</code>):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Document Review: &lt;Document Title&gt;"</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="an">source_file:</span><span class="co"> "&lt;filename&gt;.md"</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="an">date_reviewed:</span><span class="co"> "&lt;YYYY-MM-DD&gt;"</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="an">analyst:</span><span class="co"> "Claude Code (doc-review skill v1.2)"</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="an">focus_area:</span><span class="co"> "&lt;focus area&gt;"</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="an">review_structure:</span><span class="co"> "&lt;user-specified or 'thematic — content-driven'&gt;"</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="an">total_chunks:</span><span class="co"> &lt;N&gt;</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- Review content will be written in Phase 3 after all notes are complete --&gt;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p>Notify the user that processing is beginning.</p></li>
+</ol>
+<hr>
+</section>
+<section id="phase-2-sequential-section-notes-refine-pattern" class="level3">
+<h3 class="anchored" data-anchor-id="phase-2-sequential-section-notes-refine-pattern">Phase 2 — Sequential Section Notes (Refine Pattern)</h3>
+<p>Process each chunk in order, writing <strong>to the notes file</strong> (and optionally the evidence file). For <strong>every section</strong>:</p>
+<section id="step-a-prepare-carry-forward-context" class="level4">
+<h4 class="anchored" data-anchor-id="step-a-prepare-carry-forward-context">Step A — Prepare carry-forward context</h4>
+<ul>
+<li>If the accumulated <strong>notes file is under ~500 lines</strong> (~4,000–7,000 tokens): Read it in full and use it as carry-forward context.</li>
+<li>If the accumulated <strong>notes file exceeds ~500 lines</strong>: Apply tiered context:
+<ol type="1">
+<li>Read the last 2 sections’ notes verbatim from the notes file.</li>
+<li>Mentally distill a compact “Key Threads” block from all earlier sections (~300–500 tokens): defined terms, major methodology decisions, key figures established so far, open questions. You do not write this to file — it is your internal working context.</li>
+</ol></li>
+<li>If this is <strong>section 1:</strong> No prior context. Start fresh.</li>
+</ul>
+<blockquote class="blockquote">
+<p><strong>Why size-based, not count-based:</strong> A document with 20 tiny sections might have only 200 lines of notes by section 10 — easily fits in context. A document with 3 massive sections might already have 1,000+ lines by section 4. The trigger for tiered context is the accumulated content size, not the section number. 500 lines is roughly where reading prior context starts competing with attention to the current section.</p>
+</blockquote>
+</section>
+<section id="step-b-read-the-section" class="level4">
+<h4 class="anchored" data-anchor-id="step-b-read-the-section">Step B — Read the section</h4>
+<p>Use the Read tool with <code>offset</code> and <code>limit</code> matching the section’s start and end lines from the chunk plan. Do not read beyond the section boundaries.</p>
+</section>
+<section id="step-c-synthesize-and-append-to-the-notes-file" class="level4">
+<h4 class="anchored" data-anchor-id="step-c-synthesize-and-append-to-the-notes-file">Step C — Synthesize and append to the notes file</h4>
+<p>Use the focus area as an <strong>analytical lens</strong> — it tells you what to look for, not what headings to write. Extract what is actually present in the section. Do not create a sub-heading for a focus dimension if the section has nothing relevant to say about it.</p>
+<ul>
+<li>Write <strong>free-form notes</strong> organized by what is actually present in the section.</li>
+<li>For specific figures (sample sizes, weights, indicator values, dates): <strong>quote verbatim</strong> rather than paraphrase. Fabrication risk is highest for precise numerical values.</li>
+<li>Note explicit connections to content from earlier sections (e.g., “Confirms the sampling approach from Section 2”).</li>
+<li>Flag inconsistencies or ambiguities using <code>&gt; ⚠️ FLAG:</code> callouts.</li>
+<li>Flag open methodological questions using <code>&gt; ❓ OPEN QUESTION:</code> callouts.</li>
+</ul>
+<p>Append to the <strong>notes file</strong>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## [Section Number]. [Section Heading]</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>*Lines [start]–[end] | [N] lines*</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Free-form notes — organized by what is present, not by a fixed sub-heading template</span><span class="co">]</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>---</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><strong>Write immediately after processing each section.</strong> Do not batch writes. If something fails mid-review, the partial notes are preserved.</p>
+</section>
+<section id="step-c.1-extract-quotes-to-evidence-file-if-enabled" class="level4">
+<h4 class="anchored" data-anchor-id="step-c.1-extract-quotes-to-evidence-file-if-enabled">Step C.1 — Extract quotes to evidence file (if enabled)</h4>
+<p>If evidence extraction is enabled, extract <strong>key quotes</strong> from the section:</p>
+<ul>
+<li>Extract quotes that meet any of these criteria:
+<ul>
+<li>Definitions or technical terms introduced</li>
+<li>Methodological decisions and their stated rationale</li>
+<li>Key statistics, baseline values, or thresholds</li>
+<li>Surprising or counterintuitive findings</li>
+<li>Caveats, limitations, or acknowledged weaknesses</li>
+<li>Contradictions with earlier sections or other documents</li>
+<li>Statements that directly address the focus area</li>
+</ul></li>
+<li>Extract as many as the section warrants — not every paragraph, but every passage that meets the criteria above. Some sections may yield many quotes; others may yield none.</li>
+<li>Copy the text <strong>exactly as it appears</strong> in the source. Do not clean up typos, formatting, or grammar.</li>
+<li>Append each quote to the <strong>evidence file</strong> using this format:</li>
+</ul>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">### E[NNN]</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Section:** <span class="co">[</span><span class="ot">Section Number</span><span class="co">]</span>. <span class="co">[</span><span class="ot">Section Heading</span><span class="co">]</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Lines:** <span class="co">[</span><span class="ot">start</span><span class="co">]</span>–<span class="co">[</span><span class="ot">end</span><span class="co">]</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Quote:** "<span class="co">[</span><span class="ot">exact verbatim text from source</span><span class="co">]</span>"</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Tag:** <span class="co">[</span><span class="ot">1–3 thematic tags, comma-separated</span><span class="co">]</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Note:** <span class="co">[</span><span class="ot">Brief analyst note — why this quote matters</span><span class="co">]</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Verified:** (pending — filled by verify_quotes.py)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Quote numbering (<code>E001</code>, <code>E002</code>, …) is sequential across the entire document, not per section.</p>
+<blockquote class="blockquote">
+<p><strong>Why a separate evidence file:</strong> Quotes serve as verifiable anchors between the notes/review and the source document. They are also reusable across projects (e.g., extracting all quotes tagged “sampling” across 30 documents). Keeping them separate follows JBI SUMARI and Cochrane best practice for evidence tables.</p>
+</blockquote>
+</section>
+<section id="step-d-update-plan-file-and-progress" class="level4">
+<h4 class="anchored" data-anchor-id="step-d-update-plan-file-and-progress">Step D — Update plan file and progress</h4>
+<p>After processing each section: 1. Update the chunk’s <code>status</code> from <code>pending</code> to <code>complete</code> in the plan file. 2. Update the chunk plan table at the top of the notes file. 3. Briefly confirm to the user: <em>“Section [N/Total] complete: [Section Heading]. Continuing…”</em> — one line only.</p>
+<hr>
+</section>
+</section>
+<section id="phase-2.5-quote-verification-if-evidence-extraction-is-enabled" class="level3">
+<h3 class="anchored" data-anchor-id="phase-2.5-quote-verification-if-evidence-extraction-is-enabled">Phase 2.5 — Quote Verification (if evidence extraction is enabled)</h3>
+<p>After all sections are processed and before writing the review:</p>
+<ol type="1">
+<li><p>Run the verification script:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> .claude/skills/doc-review/scripts/verify_quotes.py <span class="dt">\</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"&lt;base_dir&gt;/03_notes/&lt;stem&gt;_evidence.md"</span> <span class="dt">\</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">"&lt;source_file_path&gt;"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p>The script updates the evidence file in-place with verification results (<code>✅ PASS</code>, <code>⚠️ FLAG</code>, <code>❌ FAIL</code>) and prints a summary report.</p></li>
+<li><p>Report the verification summary to the user. If any quotes FAIL, flag them explicitly.</p></li>
+</ol>
+<hr>
+</section>
+<section id="phase-3-synthesis-review" class="level3">
+<h3 class="anchored" data-anchor-id="phase-3-synthesis-review">Phase 3 — Synthesis Review</h3>
+<p>After all sections are processed (and quotes verified, if applicable):</p>
+<ol type="1">
+<li><p>Read the <strong>complete notes file</strong>.</p></li>
+<li><p>If evidence extraction is enabled, also read the <strong>evidence file</strong> for verified quotes.</p></li>
+<li><p>Write the <strong><code>_review</code> file</strong> as a coherent, standalone analytical document:</p>
+<ul>
+<li>If the user specified a structure or template: apply it exactly.</li>
+<li>If no structure was specified: organize thematically based on what the content actually warrants. Do not impose the focus area list as section headings — let the content drive the structure.</li>
+<li>The review should read as a self-contained synthesis. A reader who has not seen the notes or evidence file should fully understand the document.</li>
+<li>For all specific figures, weights, and dates: quote verbatim.</li>
+<li>Carry over all substantive <code>⚠️ FLAG</code> and <code>❓ OPEN QUESTION</code> callouts from the notes.</li>
+</ul></li>
+<li><p><strong>Update the registry</strong> (see below).</p></li>
+<li><p>Notify the user with:</p>
+<ul>
+<li>Full paths to all output files (plan, notes, evidence if applicable, review)</li>
+<li>Total sections reviewed</li>
+<li>Count of <code>⚠️ FLAG</code> and <code>❓ OPEN QUESTION</code> items</li>
+<li>Quote verification summary (if applicable)</li>
+</ul></li>
+</ol>
+<hr>
+</section>
+</section>
+<section id="registry" class="level2">
+<h2 class="anchored" data-anchor-id="registry">Registry</h2>
+<p>The registry is a CSV file at <code>&lt;base_dir&gt;/registry.csv</code> that maps each document to all its artifacts. <strong>The skill must create the registry if it does not exist, and append to it after each completed review.</strong></p>
+<pre class="csv"><code>source_stem,source_file,date_reviewed,focus_area,plan,notes,evidence,review,total_chunks,flags,open_questions,quotes_total,quotes_passed,quotes_flagged,quotes_failed,status
+BRCiS_III_Baseline_Report_final_shared_2024.07.22,01_sources/BRCiS III Baseline Report_final_shared_2024.07.22.md,2026-04-07,comprehensive,02_plans/...yaml,03_notes/...notes.md,03_notes/...evidence.md,04_reviews/...review.md,14,3,6,42,40,2,0,complete</code></pre>
+<blockquote class="blockquote">
+<p><strong>Why a registry:</strong> This is the single most consistent recommendation across NIH, ICPSR, LLM pipelines, and QDA tools for projects with many documents. It provides a single lookup for “what was reviewed, when, and where are the artifacts” without opening any files.</p>
+</blockquote>
+<hr>
+</section>
+<section id="anti-patterns" class="level2">
+<h2 class="anchored" data-anchor-id="anti-patterns">Anti-Patterns</h2>
+<p>The following are explicitly prohibited in this pipeline:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Anti-Pattern</th>
+<th>Why It Fails</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Reading the entire <code>.md</code> file at once before chunking</td>
+<td>Causes “Lost in the Middle” — middle sections will be underweighted or missed</td>
+</tr>
+<tr class="even">
+<td>Carrying forward the raw source text between sections</td>
+<td>Causes context rot — the model attends thinly to early content as context grows</td>
+</tr>
+<tr class="odd">
+<td>Writing the notes file only at the end</td>
+<td>All work is lost if the process fails mid-way</td>
+</tr>
+<tr class="even">
+<td>Processing two documents in parallel</td>
+<td>Write-permission conflicts; incoherent cross-document context</td>
+</tr>
+<tr class="odd">
+<td>Splitting a section mid-table or mid-paragraph</td>
+<td>Produces garbled analysis; always honour structural boundaries</td>
+</tr>
+<tr class="even">
+<td>Paraphrasing specific numbers, weights, or dates</td>
+<td>Highest hallucination risk; always quote verbatim</td>
+</tr>
+<tr class="odd">
+<td>Silently applying thresholds or groupings</td>
+<td>User must confirm the chunk plan before processing begins</td>
+</tr>
+<tr class="even">
+<td>Skipping the TOC step to “save time”</td>
+<td>Removes the user’s only checkpoint before a potentially long, unrecoverable run</td>
+</tr>
+<tr class="odd">
+<td>Abbreviating or reordering the source filename in output names</td>
+<td>Breaks the naming convention; causes ambiguity when multiple reviews exist</td>
+</tr>
+<tr class="even">
+<td>Applying focus-area dimensions as mandatory sub-headings in every chunk</td>
+<td>Produces thin, empty sub-headings for sections where those dimensions are not present</td>
+</tr>
+<tr class="odd">
+<td>Asking about review structure or evidence after processing begins</td>
+<td>Both must be known before Phase 2; retrofitting is disruptive</td>
+</tr>
+<tr class="even">
+<td>Launching a new agent instead of continuing via SendMessage</td>
+<td>Loses SKILL.md context, chunk plan, and user decisions — produces spec-divergent output</td>
+</tr>
+<tr class="odd">
+<td>Cleaning up, paraphrasing, or “fixing” verbatim quotes</td>
+<td>Defeats the purpose of verbatim extraction; the verification script will flag non-matches</td>
+</tr>
+</tbody>
+</table>
+<hr>
+</section>
+<section id="continuous-improvement-self-healing" class="level2">
+<h2 class="anchored" data-anchor-id="continuous-improvement-self-healing">Continuous Improvement (Self-Healing)</h2>
+<p>If this pipeline fails, produces poor output, or you discover a better approach:</p>
+<ol type="1">
+<li><p>Stop, diagnose, and resolve the issue.</p></li>
+<li><p><strong>Update Learnings:</strong> Append the finding to the <strong>Learnings</strong> section at the bottom of this file. If the finding suggests the core pipeline instructions should be changed, <strong>do NOT modify them unilaterally</strong> — present the proposed change to the user and wait for approval before editing.</p></li>
+<li><p><strong>Update the Log:</strong> Append to <code>.claude/skills/doc-review/CHANGELOG.md</code> with: date, issue, and exact resolution.</p></li>
+<li><p><strong>Version discipline:</strong> If the Learnings section exceeds <strong>8 entries</strong>, propose a version cut to the user: promote mature/recurrent learnings into the core pipeline instructions, clear them from the Learnings section, bump the version in frontmatter and CHANGELOG, and archive the old <code>SKILL.md</code> as <code>SKILL_vN.md</code>. Learnings are candidates for pipeline promotion, not a permanent log.</p></li>
+<li><p><strong>Global Sync:</strong> Promote the upgrade to the global profile:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/.claude/skills/</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> <span class="at">-R</span> .claude/skills/doc-review ~/.claude/skills/</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p>Notify the user of the upgrade, then resume.</p></li>
+</ol>
+<hr>
+</section>
+<section id="output-file-format-reference" class="level2">
+<h2 class="anchored" data-anchor-id="output-file-format-reference">Output File Format Reference</h2>
+<section id="notes-file-03_notesstem_notes.md" class="level3">
+<h3 class="anchored" data-anchor-id="notes-file-03_notesstem_notes.md">Notes file (<code>03_notes/&lt;stem&gt;_notes.md</code>)</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Section Notes: [Document Title]"</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="an">source_file:</span><span class="co"> "[filename].md"</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="an">date_reviewed:</span><span class="co"> "YYYY-MM-DD"</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="an">analyst:</span><span class="co"> "Claude Code (doc-review skill v1.2)"</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="an">focus_area:</span><span class="co"> "[focus area]"</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="an">total_chunks:</span><span class="co"> N</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="fu">## Chunk Plan</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> # <span class="pp">|</span> Section heading <span class="pp">|</span> Start <span class="pp">|</span> End <span class="pp">|</span> Lines <span class="pp">|</span> Status    <span class="pp">|</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|----------------|-------|-----|-------|-----------|</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 1 <span class="pp">|</span> Introduction   <span class="pp">|</span> 12    <span class="pp">|</span> 96  <span class="pp">|</span> 85    <span class="pp">|</span> complete  <span class="pp">|</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> 2 <span class="pp">|</span> Methodology    <span class="pp">|</span> 97    <span class="pp">|</span> 508 <span class="pp">|</span> 412   <span class="pp">|</span> pending   <span class="pp">|</span></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a><span class="fu">## 1. [Section Heading]</span></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>*Lines [start]–[end] | [N] lines*</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>[Free-form notes — organized by what is actually present in the section.</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a> Focus areas are lenses, not mandatory sub-headings.</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a> Verbatim quotes for all numbers, weights, dates.]</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; ⚠️ FLAG: </span><span class="co">[</span><span class="ot">Any inconsistency or ambiguity for human review</span><span class="co">]</span></span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; ❓ OPEN QUESTION: </span><span class="co">[</span><span class="ot">Any unresolved methodological question</span><span class="co">]</span></span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## 2. [Next Section Heading]</span></span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a>...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="evidence-file-03_notesstem_evidence.md" class="level3">
+<h3 class="anchored" data-anchor-id="evidence-file-03_notesstem_evidence.md">Evidence file (<code>03_notes/&lt;stem&gt;_evidence.md</code>)</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Evidence File: [Document Title]"</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="an">source_file:</span><span class="co"> "[filename].md"</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="an">date_reviewed:</span><span class="co"> "YYYY-MM-DD"</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="an">analyst:</span><span class="co"> "Claude Code (doc-review skill v1.2)"</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="an">total_quotes:</span><span class="co"> N</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="an">verified:</span><span class="co"> true/false</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="fu">### E001</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Section:** 1. Introduction</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Lines:** 45–48</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Quote:** "<span class="co">[</span><span class="ot">exact verbatim text from source document</span><span class="co">]</span>"</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Tag:** sampling, methodology</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Note:** Key design decision — must be replicated at midline.</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Verified:** ✅ PASS (100%)</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a><span class="fu">### E002</span></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Section:** 3. Findings</span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Lines:** 312–315</span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Quote:** "<span class="co">[</span><span class="ot">exact verbatim text</span><span class="co">]</span>"</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Tag:** food_security, FCS</span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Note:** Baseline FCS value for midline comparison.</span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Verified:** ⚠️ FLAG (91%)</span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>---</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="review-file-04_reviewsstem_review.md" class="level3">
+<h3 class="anchored" data-anchor-id="review-file-04_reviewsstem_review.md">Review file (<code>04_reviews/&lt;stem&gt;_review.md</code>)</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Document Review: [Document Title]"</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="an">source_file:</span><span class="co"> "[filename].md"</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="an">date_reviewed:</span><span class="co"> "YYYY-MM-DD"</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="an">analyst:</span><span class="co"> "Claude Code (doc-review skill v1.2)"</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="an">focus_area:</span><span class="co"> "[focus area]"</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="an">review_structure:</span><span class="co"> "[user-specified structure, or 'thematic — content-driven']"</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="an">total_chunks:</span><span class="co"> N</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>[Coherent thematic synthesis — structure driven by content or user-specified template.</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a> Self-contained: readable without the notes or evidence file.</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a> Substantive ⚠️ FLAG and ❓ OPEN QUESTION callouts carried over from notes.]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="plan-file-02_plansstem_plan.yaml" class="level3">
+<h3 class="anchored" data-anchor-id="plan-file-02_plansstem_plan.yaml">Plan file (<code>02_plans/&lt;stem&gt;_plan.yaml</code>)</h3>
+<p>See Phase 1, step 2 for full format.</p>
+<hr>
+</section>
+</section>
+<section id="learnings" class="level2">
+<h2 class="anchored" data-anchor-id="learnings">Learnings</h2>
+<p><em>(Append discoveries here — do not modify the pipeline instructions above without user approval.)</em></p>
+<ul>
+<li><strong>2026-04-07 — Design basis:</strong> This skill implements the Refine pattern (sequential accumulation) rather than Map-Reduce. Rationale: evaluation reports have cross-section narrative coherence that Map-Reduce destroys. See <code>KNOWLEDGE_BASE.md</code> for full research basis (Liu et al.&nbsp;2024, LangChain pattern taxonomy, Google Cloud summarization guide).</li>
+<li><strong>2026-04-07 — Thresholds:</strong> 500-line flag for long sections ≈ 8–10 Word pages ≈ 4,000–7,000 tokens (Pandoc output). 80-line floor for short sections ≈ 1–2 pages. Based on empirical observation of Pandoc-converted BRCiS documents: ~50–70 lines per Word page.</li>
+<li><strong>2026-04-07 — context:fork:</strong> This skill uses <code>context: fork</code> to isolate execution from the main conversation. All necessary context (file path, focus area, output directory, review structure, evidence preference) must be passed through the skill invocation — do not rely on conversation history.</li>
+<li><strong>2026-04-07 — Output file as memory:</strong> The notes file is the running synthesis. Read it back before each section rather than maintaining a separate memory object. For 20+ section documents, apply tiered context: verbatim last 2 sections + distilled Key Threads block from earlier sections.</li>
+<li><strong>2026-04-07 — Artifact-type folder structure:</strong> Based on convergent evidence from Covidence, EPPI-Reviewer, NIH, UK Data Service, ICPSR, NVivo, ATLAS.ti, LangChain, and LlamaIndex. Artifact-type separation scales to 100+ documents; per-document folders are rejected by every professional-grade review tool.</li>
+<li><strong>2026-04-07 — Quote verification:</strong> Verbatim quotes are verified programmatically using <code>rapidfuzz</code> (tiered: ≥95% PASS, 85–94% FLAG, &lt;85% FAIL). Thresholds derived from convergent legal (95–100%), academic (90–95%), and systematic review (90–95%) standards. Even the best legal AI tools hallucinate 17%+ (Magesh et al.&nbsp;2024, Stanford RegLab).</li>
+</ul>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
