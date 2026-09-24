@@ -1,0 +1,55 @@
+---
+format:
+  docx:
+    reference-doc: build/bodyref.docx
+    toc: false
+    number-sections: false
+    fig-dpi: 300
+    fig-width: 7.0
+    fig-height: 3.2
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+<!--
+  BODY ONLY. The cover, logo page, table of contents and acronyms come from the
+  front matter, which render.py prepends at stitch time.
+
+  Produce the report with ONE command:
+
+      python3 <skill>/scripts/render.py --spec report_spec.yaml
+
+  Rendering this file alone gives the body without the front matter. That is
+  useful while drafting; it is not the deliverable.
+
+  Four house rules, all enforced by render.py's lint pass:
+
+  1. Section numbers are TYPED into the heading text ("2.1 Findings"), not
+     generated. Quarto's number-sections is off.
+  2. Figure and table titles are a bold line ABOVE the element, numbered by
+     hand: "**Table 1. …**". Keep them sequential with
+     `python3 <skill>/scripts/renumber_titles.py report.qmd`.
+  3. NEVER use Quarto cross-reference anchors ({#fig-…}, {#tbl-…}). They make
+     Word offer to repair the file. See SKILL.md.
+  4. NEVER cite a figure or table by NUMBER in the prose. Write "the table
+     below", or cite the section. Numbers get reassigned; references do not.
+
+  Every Heading 1 starts a new page automatically -- do not add page breaks.
+  Tables pick up the house look from the style; no extra markup is needed.
+-->
+
+# EXECUTIVE SUMMARY
+
+Findings first.
+
+# 1.0 INTRODUCTION
+
+## 1.1 Background
+
+Text.
+
+### 1.1.1 A sub-point
+
+Text.

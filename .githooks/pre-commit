@@ -1,0 +1,119 @@
+#!/bin/sh
+# ==============================================================================
+# pre-commit — list large files before they enter the repository
+# ==============================================================================
+# WHAT THIS IS
+#   A git hook: git runs this script automatically right before every commit,
+#   whoever makes it (terminal, GitHub Desktop, RStudio, Claude Code).
+#   Exit code 0 = let the commit happen. Any other exit code = stop the commit.
+#   It never deletes, moves or unstages anything.
+#
+# ACTIVATE IT (once per clone — git never enables hooks automatically):
+#   git config core.hooksPath .githooks
+#
+# WHAT IT DOES
+#   Lists every staged file that is larger than the limits below, then:
+#     - in a terminal ..................... asks "Commit anyway? [y/N]"
+#     - in GitHub Desktop / RStudio ....... cannot ask, so stops with instructions
+#     - for Claude Code ................... you already confirmed in Claude Code's
+#                                           own prompt (.claude/hooks/check_large_files.sh),
+#                                           which leaves an approval note that this
+#                                           script checks and then deletes.
+#
+# SKIP THE CHECK FOR ONE COMMIT:  git commit --no-verify
+# LIST ONLY (used by the Claude hook):  sh .githooks/pre-commit --list
+# ==============================================================================
+
+# 1. Limits — edit per project -------------------------------------------------
+# Data formats get a low limit: the real data belongs on Google Drive, but small
+# lookup tables or output tables are fine to track.
+DATA_LIMIT_MB=5
+DATA_EXTENSIONS="csv tsv xlsx xls dta sav sas7bdat rds rda rdata parquet feather shp shx dbf gpkg"
+# Any other file (PDFs, images, ...) only needs to stay well under GitHub's
+# 50 MB warning / 100 MB hard limit.
+ANY_LIMIT_MB=25
+
+
+# 2. Find staged files above their limit ---------------------------------------
+# --diff-filter=AM : only files being Added or Modified in this commit
+#                    (an already-approved large file is not asked about again
+#                    unless it changes).
+# git cat-file -s ":path" : size of the version that is staged (the one that
+#                    will actually be committed), not of the working copy.
+DATA_LIMIT=$((DATA_LIMIT_MB * 1024 * 1024))
+ANY_LIMIT=$((ANY_LIMIT_MB * 1024 * 1024))
+
+flagged=$(
+  git -c core.quotepath=off diff --cached --name-only --diff-filter=AM |
+  while IFS= read -r path; do
+    size=$(git cat-file -s ":$path" 2>/dev/null) || continue
+    ext=$(printf '%s' "${path##*.}" | tr '[:upper:]' '[:lower:]')
+    # The leading "(" on each pattern keeps older shells from reading the ")"
+    # as the end of the surrounding $( ... ).
+    case " $DATA_EXTENSIONS " in
+      (*" $ext "*) limit=$DATA_LIMIT ;;
+      (*)          limit=$ANY_LIMIT ;;
+    esac
+    if [ "$size" -gt "$limit" ]; then
+      awk -v s="$size" -v p="$path" 'BEGIN { printf "  %6.1f MB  %s\n", s / 1048576, p }'
+    fi
+  done
+)
+
+# --list: print the flagged files and stop (the Claude hook calls this).
+if [ "$1" = "--list" ]; then
+  [ -n "$flagged" ] && printf '%s\n' "$flagged"
+  exit 0
+fi
+
+# Nothing large: let the commit through silently.
+[ -z "$flagged" ] && exit 0
+
+
+# 3. Claude Code: already confirmed in Claude Code's prompt? --------------------
+# CLAUDECODE=1 is set by Claude Code in the shell it runs commands in. The
+# approval note must list exactly the same files, so a note left over from an
+# earlier, different commit cannot approve this one.
+APPROVAL_FILE="$(git rev-parse --git-dir)/large_files_approved"
+if [ "$CLAUDECODE" = "1" ] && [ -f "$APPROVAL_FILE" ] &&
+   [ "$(cat "$APPROVAL_FILE")" = "$flagged" ]; then
+  rm -f "$APPROVAL_FILE"
+  exit 0
+fi
+
+
+# 4. Show the list ---------------------------------------------------------------
+# Git sends a hook's output to stderr, so write there (>&2).
+{
+  echo ""
+  echo "⚠  Large files in this commit (limits: data files ${DATA_LIMIT_MB} MB, any file ${ANY_LIMIT_MB} MB):"
+  printf '%s\n' "$flagged"
+  echo "   Real data normally lives on Google Drive, not in this repository."
+} >&2
+
+
+# 5. A person at a terminal: ask ----------------------------------------------------
+# [ -t 2 ] : is the output going to a terminal window (not to GitHub Desktop)?
+# /dev/tty : the keyboard of that terminal. Git gives hooks no normal input,
+#            so the answer has to be read from /dev/tty directly.
+if [ "$CLAUDECODE" != "1" ] && [ -t 2 ] && ( : < /dev/tty ) 2>/dev/null; then
+  printf "   Commit anyway? [y/N] " >&2
+  read -r answer < /dev/tty
+  case "$answer" in
+    [yY] | [yY][eE][sS]) exit 0 ;;
+  esac
+  echo "   Commit cancelled. Nothing was deleted. To leave a file out: git restore --staged <file>" >&2
+  exit 1
+fi
+
+
+# 6. Nowhere to ask: stop with instructions ----------------------------------------
+if [ "$CLAUDECODE" = "1" ]; then
+  echo "   Commit stopped. Claude: show these files to the user and ask whether they belong in the repository." >&2
+  echo "   If yes, run a plain 'git commit' again (with the files already staged) so Claude Code can ask for confirmation." >&2
+else
+  echo "   Commit stopped (this app cannot ask questions)." >&2
+  echo "   - To leave a file out: untick it, then commit again." >&2
+  echo "   - To commit it anyway: run 'git commit' in a terminal and answer y." >&2
+fi
+exit 1

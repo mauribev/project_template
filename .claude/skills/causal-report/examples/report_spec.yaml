@@ -1,0 +1,10 @@
+profile: long_report
+body: 01_elements.qmd
+out: 01_elements.docx
+
+values:
+  TITLE: "Causal Design Report Template"
+  SUBTITLE: "Style Reference"
+  CLIENT: "Causal Design"
+  COUNTRY: "Example"
+  DATE: "1 January 2027"

@@ -5,7 +5,7 @@
 ## 1. Project Context
 You are assisting an economist with a data science project (e.g., midline assessment, baseline cleaning, impact evaluation).
 * **Primary Objective:** Write reproducible, highly structured analytical pipelines.
-* **Full Context:** Always refer to `@README.md` for project background, methodology, and folder structure.
+* **Full Context:** Always refer to `README.md` for project background, methodology, and folder structure.
 
 ## 2. Strict Data & Pathing Rules
 * **The "Split-Brain" Workflow:** Code lives in this Git repository. Data lives securely on Google Drive, unless otherwise directly specified by the user.
@@ -14,10 +14,10 @@ You are assisting an economist with a data science project (e.g., midline assess
   * **Mandatory Sourcing:** You MUST source this configuration file at the absolute top of EVERY single analysis script you create or modify. This ensures standalone execution.
     * *Example (R):* `source(here::here("04_scripts", "00_setup_paths.R"))`
     * *For Python:* `from pyprojroot import here; exec(open(here("04_scripts/00_setup_paths.py")).read())`
-    * *Example (Stata):* `do "$GITHUB_PATH/04_scripts/00_setup_paths.do"`
-  * **Template Reference:** If you need to understand the pathing logic, you can read the file `@01_references/00_guidelines/setup_paths_template.md`.
+    * *Example (Stata):* `do "04_scripts/00_setup_paths.do"` (relative path, run with Stata's working directory at the repo root — `$GITHUB_PATH` does not exist until this file has run)
+  * **Template Reference:** If you need to understand the pathing logic, you can read the file `01_references/00_guidelines/setup_paths_template.md`.
 * **Data Sanctity & Boundaries:**
-  * You are strictly forbidden from modifying, overwriting, or deleting any files inside any raw data folders (e.g., `03_data/01_raw`). You may only read from raw data sources.
+  * You are strictly forbidden from modifying, overwriting, or deleting any files inside any raw data folders (e.g., `GDRIVE_PATH/01_raw_data/`). You may only read from raw data sources.
   * All massive data transformations must be saved to the Google Drive `02_temp_data/` or `03_clean_data/` folders.
   * Do not navigate, read, or list directories outside of this local project repository and the explicit Google Drive paths defined by the user.
 * **Handling Outputs & Reports:**
@@ -25,13 +25,14 @@ You are assisting an economist with a data science project (e.g., midline assess
   * *Subfolder Rule:* Always create or use a subfolder inside `05_outputs` that matches the script name (e.g., `05_outputs/01_figures/02_analysis/`). Do not dump loose files.
   * **Exploratory Work:** Save preliminary or internal documents/EDA to `06_workspace/02_exploratory/`.
   * **Deliverables:** Formal, compiled client reports (`.docx`, `.pdf`) and slide decks should be saved to `07_deliverables/`.
+  * **Report Sources:** Client reports built with the `causal-report` skill are *authored* in `06_workspace/04_report_drafts/<report_name>/` (a body `.qmd` plus its `report_spec.yaml`) and *rendered* into `07_deliverables/02_output_documents/`. The `build/` tree beside each spec is disposable and gitignored; the `.causal-report/` baseline beside it IS tracked, because the `.docx` round trip has nothing to compare against without it.
 * **External Data Sourcing:** If tasked with finding, scraping, or downloading external public data (e.g., APIs, spatial shapefiles), write the download scripts to save the files directly into `GDRIVE_PATH/01_raw_data/external/`.
 * **NO DATA HALLUCINATION:** NEVER simulate, generate dummy data, or mock datasets to bypass a missing file or an execution error. If data is missing or a merge fails, stop immediately, report the exact error, and wait for human instruction.
-* **Git Guardrail:** Never track, download, or commit raw datasets into the local Git folders (`03_data/`).
+* **Git Guardrail:** Never track, download, or commit raw datasets into this Git repository. Data lives on Google Drive and is read at runtime; the repository ships no local data folder, and `03_data/` stays in `.gitignore` as a backstop in case one is ever created by hand.
 
 ## 3. Strict Directory Discipline
 * **No Unauthorized Folders:** You must strictly adhere to the predefined `01` through `09` folder architecture. DO NOT invent new root folders (e.g., `src/`, `output/`, `data/`).
-* If you believe a new subfolder is required to maintain organization, propose it to the user first and wait for his confirmation.
+* If you believe a new subfolder is required to maintain organization, propose it to the user first and wait for their confirmation.
 
 ## 4. Coding Standards & Execution
 * **The Reproducibility Rule (No Interactive Coding):** NEVER run analytical code interactively in the terminal (e.g., opening a Python REPL, R console, or Stata interactive mode). All code must be written into, saved, and executed from a formal script file (e.g., `.R`, `.do`, `.py`, `.qmd`).
@@ -43,7 +44,7 @@ You are assisting an economist with a data science project (e.g., midline assess
 * **Language Agnostic:** This project may use different coding software (e.g., Python, R, Stata). If the user doesn't ask which program to use, please ask. Make sure to follow the guidance of the user. Do not attempt to change the program without the user authorizing it.
 * **Coding preferences:**
   * *R:*
-    * Use `pacman::p_load()` for clean package loading and installation, keeping these calls grouped at the very top of the script.
+    * Use `pacman::p_load()` for clean package loading and installation, keeping these calls grouped directly after sourcing `00_setup_paths`.
     * Use `data.table` for data manipulation (due to memory efficiency), unless working with data (e.g., spatial data (`sf`)), where `dplyr`/base is preferable.
     * Use the `here::here()` package for internal repo paths.
 * **Script Structure:** Ensure scripts are sequentially numbered (e.g., `01_clean.R`, `02_analysis.do`) to enforce chronological execution.
@@ -56,10 +57,10 @@ You are assisting an economist with a data science project (e.g., midline assess
   * **Commit Frequency:** Commit code after every major milestone or successful bug fix. Do not wait until the end of the day.
   * **Propose, Then Commit**: ALWAYS propose a conventional commit message (e.g., `feat: clean baseline data`, `fix: correct merge logic in 02_analysis.R`) and wait for human approval before actually running git commit. Never auto-commit.
   * **Branching:** For routine fixes, commit to `main`. For major analytical work, new features, or structural changes, ALWAYS propose creating a new branch (e.g., `git checkout -b feature-poverty-index`) before committing. Let the user decide.
-  * **Guardrail:** ALWAYS verify `git status` before committing to ensure no files from `03_data/` have accidentally slipped into the staging area.
+  * **Guardrail:** ALWAYS verify `git status` before committing to ensure no data files have accidentally slipped into the staging area.
 
 ## 5. The Legacy Vault (Read-Only)
-* The `@09_legacy_vault/` contains historical, unorganized code and data.
+* The `09_legacy_vault/` contains historical, unorganized code and data.
 * **CRITICAL RULE:** This folder is a read-only museum. You may read and copy code/logic FROM this vault to refactor it, but you are STRICTLY FORBIDDEN from executing scripts within it, modifying, deleting, or overwriting anything inside it.
 
 ## 6. Agentic Memory & Session Logging
@@ -79,7 +80,7 @@ The project carries a deliberate four-layer tracking system. They are complement
 * **Session Logging (`08_ai_management/01_progress_logs/`):** To prevent context loss across sessions, you must maintain a running log.
   * **File Naming:** Always use dated files: `YYYY-MM-DD_session.md`.
   * **Continuous Appending:** Do not wait until the end of the session. Append major milestones and failed attempts to the log as they happen.
-  * **Format:** Strictly follow `@08_ai_management/03_system_templates/log_template.md`.
+  * **Format:** Strictly follow `08_ai_management/03_system_templates/log_template.md`.
   * **Initialization:** When the user says "pick up where we left off," do three things:
     1. Read the most recent dated log in `01_progress_logs/`, scan `WORKSTREAMS.md` for the relevant workstream, and review the `decision_log.md`.
     2. Scan `PENDING.md ## Open` for items relevant to the current task.
@@ -90,18 +91,18 @@ The project carries a deliberate four-layer tracking system. They are complement
   * **Pruning:** Recently Done items older than ~30 days (or at milestone boundaries) can be deleted on a cleanup pass. The session log entries for those dates are the permanent record; PENDING.md is a rolling working view, not a historical archive.
   * **Cancelled / wontfix:** items deliberately deprioritized go to `## Cancelled / Wontfix` with a one-line reason. Same pruning policy.
   * **At session start:** scan `PENDING.md ## Open` for items relevant to the current task, the same way you would read recent session logs.
-* **Workstream Tracking (`08_ai_management/01_progress_logs/WORKSTREAMS.md`):** The topic-indexed synthesis layer — the "table of contents by theme" over the chronological logs. One section per workstream (e.g., Literature Review, Survey Design, Sampling & Weights, Data Cleaning, Construction, Analysis, Reporting, Dissemination). Each section carries a **Status** badge, a one-paragraph **Current State**, a dated **Advances** list, and **pointers** into the other layers (links to the relevant session log, `decision_log.md` entry, and `PENDING.md` items). Follow `@08_ai_management/03_system_templates/workstream_template.md`.
+* **Workstream Tracking (`08_ai_management/01_progress_logs/WORKSTREAMS.md`):** The topic-indexed synthesis layer — the "table of contents by theme" over the chronological logs. One section per workstream (e.g., Literature Review, Survey Design, Sampling & Weights, Data Cleaning, Construction, Analysis, Reporting, Dissemination). Each section carries a **Status** badge, a one-paragraph **Current State**, a dated **Advances** list, and **pointers** into the other layers (links to the relevant session log, `decision_log.md` entry, and `PENDING.md` items). Follow `08_ai_management/03_system_templates/workstream_template.md`.
   * **It is an index, not a diary.** Do not paste full narratives here — synthesize the current state in a few lines and link out to the chronological record.
   * **When to update:** whenever a workstream's *state* meaningfully changes (a phase completes, a decision lands, a blocker appears/clears). Not every session touches every workstream — update only the ones that moved.
   * **Relationship to the other layers:** session logs are *what happened*; `decision_log.md` is *why*; `PENDING.md` is *what's queued*; `WORKSTREAMS.md` is *where each topic stands now*. When you log a session milestone or a decision that advances a workstream, reflect the new state in the matching `WORKSTREAMS.md` section in the same pass.
-* **Methodology Tracking (`08_ai_management/02_quality_reports/`):** When making a significant methodological, econometric or data decision, append the rationale to `decision_log.md` using `@08_ai_management/03_system_templates/decision_template.md`.
+* **Methodology Tracking (`08_ai_management/02_quality_reports/`):** When making a significant methodological, econometric or data decision, append the rationale to `decision_log.md` using `08_ai_management/03_system_templates/decision_template.md`.
 * **Continuous Learning & Archiving (`08_ai_management/04_knowledge_base/`):**
-  * **Learned lessons:** Append reusable insights to `learnings.md` following the structure in `@08_ai_management/03_system_templates/learning_template.md`. Triggers are bidirectional:
+  * **Learned lessons:** Append reusable insights to `learnings.md` following the structure in `08_ai_management/03_system_templates/learning_template.md`. Triggers are bidirectional:
     * **User-triggered:** when the user says "Save this lesson" (or any paraphrase), extract the core concept and append immediately.
     * **AI-triggered (proactive):** you SHOULD proactively suggest adding a learning when you encounter: a non-obvious methodological insight, a coding pattern that solved a recurring problem, a workflow optimization, or a debugging takeaway that would prevent future repetition. Don't wait for the user to remember to ask. Phrase the suggestion explicitly — e.g., *"That feels like a candidate for `learnings.md` — want me to write it up?"* — and let the user decide. If the user declines, drop it without negotiation.
   * **Deep methodology references:** When a topic warrants a full, course-note-style write-up (math, derivations, step-by-step procedure) beyond a single `learnings.md` entry, create a dedicated `methodology_<topic>.md` in `04_knowledge_base/`. See `04_knowledge_base/_examples/` for the expected depth and format.
-  * **Conversation Transcripts:** If the user asks to save the current conversation, export a markdown transcript into `@08_ai_management/04_knowledge_base/transcripts/`, naming it `YYYY-MM-DD-HH-mm_session.md`.
-  * **Skills Backlog:** If we identify a repetitive, tedious task that could be automated into a CLI skill, extract the logic and add it to `@08_ai_management/04_knowledge_base/skills_backlog.md`.
+  * **Conversation Transcripts:** If the user asks to save the current conversation, export a markdown transcript into `08_ai_management/04_knowledge_base/transcripts/`, naming it `YYYY-MM-DD-HH-mm_session.md`.
+  * **Skills Backlog:** If we identify a repetitive, tedious task that could be automated into a CLI skill, extract the logic and add it to `08_ai_management/04_knowledge_base/skills_backlog.md`.
 
 ## 7. Claude Code Skills
 

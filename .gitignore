@@ -36,13 +36,6 @@ Thumbs.db
 ~$*.pptx
 
 # ========================
-# 6. AUTO-GENERATED BACKUPS
-# ========================
-# Master scripts auto-backup human-edited workbooks before re-rendering.
-# The workbook itself is tracked in git; per-run snapshots are not.
-02_survey_tools/01_quant_tools/_backups/
-
-# ========================
 # 5. CLAUDE HIDDEN FILES
 # ========================
 # Ignore all private session logs, cache, local settings, and memory
@@ -55,3 +48,28 @@ Thumbs.db
 !.claude/hooks/
 !.claude/commands/
 !.claude/settings.json
+
+# Personal, per-person Claude instructions (loaded next to CLAUDE.md, never shared)
+CLAUDE.local.md
+
+# Quarto previews rendered from a SKILL.md for human reading. Claude only reads
+# SKILL.md, so the HTML and its support-library folder are noise in every copy.
+.claude/skills/**/SKILL.html
+.claude/skills/**/SKILL_files/
+
+# ========================
+# 6. AUTO-GENERATED BACKUPS
+# ========================
+# Master scripts auto-backup human-edited workbooks before re-rendering.
+# The workbook itself is tracked in git; per-run snapshots are not.
+02_survey_tools/01_quant_tools/_backups/
+
+# ========================
+# 7. REPORT BUILD INTERMEDIATES
+# ========================
+# causal-report skill: disposable build trees written next to each report spec.
+# Anchored to 06_workspace (where report sources live) rather than to a single
+# folder, so a report drafted anywhere beneath it is covered.
+# The .causal-report/ baseline IS tracked -- the .docx round trip needs it.
+06_workspace/**/build/
+**/.causal-report/pre_import.qmd

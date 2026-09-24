@@ -1,7 +1,7 @@
 # GitHub, AI, & Data Management Protocol
 **Version:** 2.0 (Updated for Claude Code CLI integration)
 **Author:** Miguel Uribe
-[**Applies to:** All Research Staff, Assistants, & AI Agents
+**Applies to:** All Research Staff, Assistants, & AI Agents
 
 ---
 
@@ -24,7 +24,7 @@
 | 2. Invite Users & Permissions  | | ✅ Executor  | |
 | **Phase 1: Regular routine**  | | | |
 | 3. Clone & Setup Paths  | | | ✅ Executor  |
-| 4. Daily Work (Pull/Push)  | 🔵 Oversight  | | [✅ Executor  |
+| 4. Daily Work (Pull/Push)  | 🔵 Oversight  | | ✅ Executor  |
 | 5. Consult on Major Changes  | ✅ Advisor  | ✅ Advisor  | 🔵 Initiator  |
 | 6. Review & Merge Branches  | ✅ Approver  | ✅ Executor  | |
 | 7. Weekly Snapshot (Backup)  | | ✅ Executor  | |
@@ -52,12 +52,13 @@
 4. Click **Clone**.
 
 **Step 3: Fill the Box & Initialize Templates**
-1. Open your computer's file explorer. Copy the contents of the **Master Project Template** (Folders 01-07, `.gitignore`, etc.).
-2. Paste them into your newly cloned, empty project folder.
-3. **Activate the Project README:** * Copy `README_template.md` from `08_ai_management/03_system_templates/` into the root directory as `README.md` (replacing the scaffold's own README).
+1. **Preferred:** skip Steps 1–2 and create the repository directly from the template on GitHub ("Use this template" → "Create a new repository"; see the template's own README, §1). This copies everything — folders 01–09, `.claude/`, `.githooks/`, `CLAUDE.md`, `.gitignore` — with a clean history.
+2. **Manual alternative:** copy the *entire* contents of the template (including the hidden `.claude/`, `.githooks/` and `.gitignore`) into your newly cloned, empty project folder.
+3. **Turn on the commit safety check:** in a terminal at the project folder, run `git config core.hooksPath .githooks` once. This activates the pre-commit hook that asks before large data files are committed (see Section 5).
+4. **Activate the Project README:** * Copy `README_template.md` from `08_ai_management/03_system_templates/` into the root directory as `README.md` (replacing the scaffold's own README).
    * Open it and fill in the project-specific details (Project Name, PI, methodology, etc.).
    * `CLAUDE.md` is already in the root and ready to use — just delete the "Template note" at the top once you've read it. (There is no separate CLAUDE template to copy.)
-4. **Create the Setup File:**
+5. **Create the Setup File:**
    * Open `01_references/00_guidelines/setup_paths_template.md`.
    * Copy the code for your primary language (R, Stata, or Python) and save it as a new file in `04_scripts/` named `00_setup_paths.[R/do/py]`. Configure your local paths inside it.
 
@@ -81,11 +82,12 @@
 Because Code and Data live in different places, we use a central configuration file so scripts work seamlessly across operating systems.
 1. Ensure Git and GitHub Desktop are installed on your computer.
 2. Open GitHub Desktop -> **File** -> **Clone Repository**. Clone the project to your **Safe Local Folder** (e.g., `~/github/company_name/project-name/`). *Never clone into Google Drive!*
-3. Open the central config file located at `04_scripts/00_setup_paths.[R/do/py]`.
-4. Add your OS username and the absolute path to the project's Google Drive `03_data` folder to the `if/else` block (check where raw/temp/clean data live and make sure you add the specific subflder). 
-5. **In your actual analysis scripts:** Do not copy-paste a massive path header. Simply add one line at the top to call the config file:
+3. **Turn on the commit safety check** (once per clone): open a terminal in the project folder and run `git config core.hooksPath .githooks`. Git never activates hooks automatically on a fresh clone, so each person does this once. If you skip it nothing breaks — you simply don't get the large-file check.
+4. Open the central config file located at `04_scripts/00_setup_paths.[R/do/py]`.
+5. Add your OS username and the absolute path to the project's Google Drive `03_data` folder to the `if/else` block (check where raw/temp/clean data live and make sure you add the specific subflder). 
+6. **In your actual analysis scripts:** Do not copy-paste a massive path header. Simply add one line at the top to call the config file:
    * **R:** `source(here::here("04_scripts", "00_setup_paths.R"))`
-   * **Stata:** `do "$GITHUB_PATH/04_scripts/00_setup_paths.do"`
+   * **Stata:** `do "04_scripts/00_setup_paths.do"` (with Stata's working directory at the repo root; `$GITHUB_PATH` only exists after this runs)
 
 ### Phase A: Start of Day (The Pull)
 Always do this before you type a single line of code so you don't overwrite your team's work.
@@ -95,7 +97,9 @@ Always do this before you type a single line of code so you don't overwrite your
 
 ### Phase B: The End of Day (The Push)
 Choose the correct protocol based on the complexity of your work.
-* **Sanity Check:** Check your `.gitignore` and `git status`. Ensure NO files from `03_data/` are listed.
+* **Sanity Check:** Look at the list of files you are about to commit (`git status`, or the Changes tab in GitHub Desktop). Nothing from the Google Drive data folders should be there. The pre-commit hook will also stop and list any data file over 5 MB (or any file over 25 MB):
+    * *In a terminal*, it asks `Commit anyway? [y/N]` — answer `y` if the file genuinely belongs in the repository.
+    * *In GitHub Desktop* (or RStudio's Git pane), it cannot ask, so it stops the commit and shows the list. Untick the file, or — if it should be committed — run `git commit` from a terminal and answer `y` there.
 
 **Scenario 1: Routine Work (Direct to Main)**
 * **Definition:** Minor fixes, data cleaning, or working on independent scripts that do not affect others.
@@ -116,7 +120,8 @@ Choose the correct protocol based on the complexity of your work.
 ## 5. Working with Claude Code
 When using the Claude Code CLI, Claude will write code and propose saving it to GitHub. 
 * **No Auto-Commits:** Claude is strictly instructed to *propose* a commit message and wait for human approval. 
-* **Human Verification:** When Claude asks, *"Would you like me to run `git commit`?"*, you must read the terminal output to verify what files are being staged. If Claude accidentally staged a `.csv` file, type `No`, and instruct it to fix the `.gitignore`.
+* **Human Verification:** When Claude asks, *"Would you like me to run `git commit`?"*, you must read the terminal output to verify what files are being staged. If Claude accidentally staged a data file, answer `No` and ask it to unstage the file.
+* **Built-in safety net:** the project's `.claude/settings.json` makes Claude Code ask you before *every* `git commit` / `git push` Claude runs, and — through the hook in `.claude/hooks/check_large_files.sh` — lists any large data file in that commit in the same prompt. It also stops Claude from editing `04_scripts/00_setup_paths.*`, anything in `09_legacy_vault/`, or Google Drive `01_raw_data/` folders.
 
 ---
 
@@ -131,7 +136,7 @@ Because Data lives in Shared Drive and Code lives in Personal/Local Drive, we ne
 5. Paste the new folder and rename it `04_code_SNAPSHOT`.
 
 **Option B: The "1-Click" Automated Method**
-Setup this script once, then just double-click it every Friday. (Note: Update the `SOURCE` paths in your `.bat` or `.command` scripts to point to your new local `~/Documents/GitHub/` directory instead of Google Drive).
+Setup this script once, then just double-click it every Friday. (Note: `SOURCE` is your local repository folder — never a Google Drive path — and `DEST` is the Shared Drive snapshot folder. Both scripts skip the hidden `.git` folder.)
 
 For Windows Users (backup.bat)
     1. Open Notepad.
@@ -141,8 +146,8 @@ For Windows Users (backup.bat)
 ```
 @echo off
 :: CONFIGURATION
-set SOURCE="G:\My Drive\GitHub\project_example\04_code"
-set DEST="G:\Shared Drives\CD_3_Projects\Active Projects\project_example\3_Data\04_code_SNAPSHOT"
+set SOURCE="C:\Users\YourName\github\company_name\project_example"
+set DEST="G:\Shared Drives\CD_3_Projects\Active Projects\project_example\03_data\04_code_SNAPSHOT"
 
 :: EXECUTION
 echo ---------------------------------------------------
@@ -151,8 +156,9 @@ echo ---------------------------------------------------
 echo Source: %SOURCE%
 echo Dest:   %DEST%
 
-:: /E = Copy subdirectories, /I = Assume destination is folder, /Y = Overwrite without asking
-xcopy %SOURCE% %DEST% /E /I /Y
+:: robocopy /MIR = mirror the folder (copies subfolders, removes files deleted from the source)
+:: /XD .git      = exclude the hidden .git folder (the git history does not belong on the Shared Drive)
+robocopy %SOURCE% %DEST% /MIR /XD .git
 
 echo.
 echo ✅ Backup Complete!
@@ -170,15 +176,16 @@ For Mac Users (backup.command)
 #!/bin/bash
 # CONFIGURATION
 # Note: Google Drive path on Mac is usually under /Volumes or ~/Library/CloudStorage
-SOURCE="/Users/yourname/GitHub/project_example/04_code/"
-DEST="/Volumes/GoogleDrive/Shared Drives/CD_3_Projects/Active Projects/project_example/3_Data/04_code_SNAPSHOT/"
+SOURCE="/Users/yourname/github/company_name/project_example/"
+DEST="/Volumes/GoogleDrive/Shared Drives/CD_3_Projects/Active Projects/project_example/03_data/04_code_SNAPSHOT/"
 
 echo "---------------------------------------------------"
 echo "Backing up Code from Personal Drive to Shared Drive"
 echo "---------------------------------------------------"
 
-# rsync is the standard Mac copy tool. -a = archive mode, -v = verbose, --delete = remove files in dest that are gone in source
-rsync -av --delete "$SOURCE" "$DEST"
+# rsync is the standard Mac copy tool. -a = archive mode, -v = verbose, --delete = remove files in dest that are gone in source,
+# --exclude .git/ = do not copy the git history into the Shared Drive
+rsync -av --delete --exclude '.git/' "$SOURCE" "$DEST"
 
 echo "✅ Backup Complete!"
 ```
@@ -188,7 +195,7 @@ echo "✅ Backup Complete!"
 ## 7. Phase 2: Project closure
 What happens when the project is finished? We must ensure the work is preserved and documented.
 * **Final Snapshot:** Run the Snapshot script one last time to ensure the Shared Drive has the final code.
-* **Clean the Data:** Ensure `03_data\05_clean` contains the final analysis dataset and variable labels are correct.
+* **Clean the Data:** Ensure the Google Drive `03_data\03_clean_data` folder contains the final analysis dataset and variable labels are correct.
 * **Update README:** Open `README.md` in the code folder. Update the Title, Abstract, and Citation. List the final output files.
 * **Archive Repository:** Go to GitHub.com -> Settings -> General. Select Archive this repository. Result: The code becomes "Read-Only." No one can change it, but anyone in the company can still download it for future reference.
 

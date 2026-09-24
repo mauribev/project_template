@@ -5,10 +5,6 @@
 ---
 
 ## [YYYY-MM-DD] - [Decision: Short Title, e.g., Handling Attrition in Midline, Proxy Indicator for Household Wealth / Scope of Lit Review]
-* **Context:** [Why did this issue come up? What was the research, analytical or coding dilemma?]
-* **Decision:** [What exact method or approach did we decide to implement?]
-* **Alternatives Rejected:** [What other approaches did we consider, and specifically why were they ruled out?]
-
 * **Context & Source:** [Why did this issue come up? If this is an external data sourcing decision, include the exact URL, API endpoint, or citation of the data we decided to use.]
 * **Decision:** [What exact approach, method, dataset, module, or indicator did we decide to implement?]
 * **Alternatives Rejected:** [What other approaches, methods, or datasets did we consider, and specifically why were they ruled out?]

@@ -1,0 +1,25 @@
+# Report spec — copy this next to your body .qmd and fill it in.
+#
+# This is the ONLY file you edit to point the pipeline at a new report. Design
+# values (fonts, colours, sizes, table look) are not here; they live in the
+# profile. Build with:
+#
+#     python3 <skill>/scripts/render.py --spec report_spec.yaml
+
+profile: long_report          # which profiles/<name>/ directory to use
+body: report.qmd              # the body source, relative to this file
+out: report.docx              # the finished report, relative to this file
+
+# Values for the {{TOKENS}} in the profile's front matter. To see exactly which
+# tokens the front matter contains:
+#
+#     python3 <skill>/scripts/make_templates.py --profile long_report --list-tokens
+#
+# The build fails if a token has no value here, and notes any value that has no
+# matching token. Names are case-insensitive.
+values:
+  TITLE: "Report title as it appears on the cover"
+  SUBTITLE: "Short document type, used in the running footer"
+  CLIENT: "Client organisation"
+  COUNTRY: "Country or region"
+  DATE: "1 January 2027"
