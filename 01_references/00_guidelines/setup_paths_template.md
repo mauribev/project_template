@@ -107,7 +107,7 @@ At the absolute top of every new analysis script you write, you must include one
 The `here` package searches upwards from your script's location until it finds a `.git` folder or `.Rproj` file, establishing the absolute "root" of your project. This prevents relative path errors.
 
 While opening an `.Rproj` file sets your working directory to the project root, relying solely on this (e.g., using `source("04_scripts/00_setup_paths.R")`) is fragile. If you "Knit" an `.Rmd` file or click "Source" on a script located inside a subfolder, R temporarily changes the working directory to that subfolder, which will break your paths. 
-The `here` package solves this by dynamically searching upwards to find the `.git` or `.Rproj` file, establishing an unbreakable absolute path to the root, regardless of how or where the script is run. (See [C-Ran](https://cran.r-project.org/web/packages/here/vignettes/here.html) for more information).
+The `here` package solves this by dynamically searching upwards to find the `.git` or `.Rproj` file, establishing an unbreakable absolute path to the root, regardless of how or where the script is run. (See [CRAN](https://cran.r-project.org/web/packages/here/vignettes/here.html) for more information).
 
 ```R
 # The 'here' package finds the project root automatically
@@ -127,7 +127,7 @@ exec(open(here("04_scripts/00_setup_paths.py")).read())
 Stata handles paths differently. Because it lacks a robust project-root locator, do NOT copy and paste the user-detection code into every single .do file. Instead, rely on Stata's global memory.
 During Development: At the start of your Stata session, open and run 04_scripts/00_setup_paths.do ONCE. This loads all path variables into Stata's memory. You can then open and interactively run any sub-script (e.g., `02_clean.do`).
 
-For Final Execution: Use a `00_master.do` file located at the project root to run everything sequentially.
+For Final Execution: Use a `00_master.do` file located in `04_scripts/` to run everything sequentially. Because `$GITHUB_PATH` is only defined once `00_setup_paths.do` has run, start Stata with its working directory at the repo root (open the project's `.stpr` file or `cd` there) and call the setup file with a relative path: `do "04_scripts/00_setup_paths.do"`.
 ---
 
 ## How to Run Sequential Files (Master Scripts)
@@ -192,14 +192,6 @@ This is the standard approach for a `00_master.R/py/do` file. It sequentially ca
 
   # 3. Run sequential analysis (Using the Root Locator approach)
   subprocess.run(["python", here("04_scripts/02_analysis/01_summary_stats.py")], check=True)
-
-
-  import subprocess
-  from pyprojroot import here
-
-  # Execute scripts using the terminal via subprocess
-  subprocess.run(["python", here("04_scripts/01_data_cleaning/00_master_clean.py")], check=True)
-  subprocess.run(["python", here("04_scripts/02_analysis/01_summary_stats.py")], check=True)
   ```
   * Note on `exec` vs `subprocess`: Current Memory vs. Isolated Execution
     * Step 1 uses `exec(...)` because we need to INJECT memory.: The `00_setup_paths.py` file does not do anything; it simply defines variables like `GITHUB_PATH` and `GDRIVE_PATH`.
@@ -215,7 +207,7 @@ This is the standard approach for a `00_master.R/py/do` file. It sequentially ca
 
   ```Stata
   * Run setup to load globals
-  do "$GITHUB_PATH/04_scripts/00_setup_paths.do"
+  do "04_scripts/00_setup_paths.do"   // relative: $GITHUB_PATH does not exist yet
 
   * Run nested masters and sequential files
   do "$GITHUB_PATH/04_scripts/01_data_cleaning/00_master_clean.do"
@@ -233,7 +225,7 @@ Master files often need to run standard scripts to clean data, and then render n
   # Render the frontend report to Word/HTML
   rmarkdown::render(
     input = here::here("04_scripts", "03_report.Rmd"),
-    output_dir = here::here("06_outputs", "03_deliverables")
+    output_dir = here::here("07_deliverables", "02_output_documents")
   )
   ```
 
@@ -247,7 +239,7 @@ Master files often need to run standard scripts to clean data, and then render n
   subprocess.run(["python", here("04_scripts/01_clean.py")], check=True)
 
   # 2. Execute a Jupyter Notebook using Papermill (requires: pip install papermill)
-  subprocess.run(["papermill", here("04_scripts/02_eda.ipynb"), here("05_workspace/02_exploratory/02_eda_executed.ipynb")], check=True)
+  subprocess.run(["papermill", here("04_scripts/02_eda.ipynb"), here("06_workspace/02_exploratory/02_eda_executed.ipynb")], check=True)
 
   # 3. Render a Quarto document
   subprocess.run(["quarto", "render", here("04_scripts/03_report.qmd")], check=True)

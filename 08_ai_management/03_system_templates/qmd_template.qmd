@@ -59,7 +59,7 @@ KEY RULES FOR AI COMMENTARY
   - Only write inside `:::{.callout-note title="🤖 AI Commentary"} ... :::`
     blocks. Never edit the intro prose, the R chunk, or the table/figure.
   - Update the "Edited YYYY-MM-DD by <author>" line every time you touch
-    the block. <author> is the model name (e.g. "Claude Opus 4.7") for AI
+    the block. <author> is the model name (e.g. "Claude Opus 5.5") for AI
     edits, or the person's name for human edits.
   - Base every claim on the dynamic-stats output above. Never invent
     numbers; never reference data the chunk did not produce.
@@ -81,9 +81,7 @@ KEY RULES FOR AI COMMENTARY
 # data reads belong in later chunks so that each section is inspectable on
 # its own.
 
-if (requireNamespace("here", quietly = TRUE)) {
-  source(here::here("04_scripts", "00_setup_paths.R"))
-}
+source(here::here("04_scripts", "00_setup_paths.R"))
 
 pacman::p_load(dplyr, tidyr, reactable, htmltools)
 ```
@@ -163,7 +161,7 @@ The form has `r sum(type_counts$count)` rows distributed across
 (`r max(type_counts$count)` rows).
 
 :::{.callout-note title="🤖 AI Commentary"}
-*Edited 2026-04-28 by Claude Opus 4.7 (template placeholder).*
+*Edited 2026-04-28 by <model name> (template placeholder).*
 
 This is the visible-callout pattern for interpretive prose. Replace this
 placeholder with concrete commentary based on the table above, or omit
@@ -251,7 +249,7 @@ Scanned `r nrow(variable_diagnostics)` variables across
 `r dplyr::n_distinct(variable_diagnostics$group)` groups.
 
 :::{.callout-note title="🤖 AI Commentary"}
-*Edited 2026-04-28 by Claude Opus 4.7 (template placeholder).*
+*Edited 2026-04-28 by <model name> (template placeholder).*
 
 Use this block only when you have concrete anomalies to flag. Do not
 summarise the table — the reader already sees it. Omit the entire block
@@ -264,10 +262,10 @@ if there is nothing useful to add.
 
 ### Tables — always route through the project helper
 
-Every diagnostic table rendered to HTML must go through `make_diagnostic_table()` in `04_scripts/00_setup/01_functions/diagnostic_helpers.R`. **Do not call `reactable::reactable()` or `DT::datatable()` directly with handwritten options.** The helper bakes in the project's display rules so they cannot drift across notebooks.
+Every diagnostic table rendered to HTML must go through `make_diagnostic_table()` in `04_scripts/01_functions/diagnostic_helpers.R` (not shipped with the template — create it on the first project that needs it). **Do not call `reactable::reactable()` or `DT::datatable()` directly with handwritten options.** The helper bakes in the project's display rules so they cannot drift across notebooks.
 
 ```r
-source(here::here("04_scripts", "00_setup", "01_functions",
+source(here::here("04_scripts", "01_functions",
                    "diagnostic_helpers.R"))
 
 make_diagnostic_table(

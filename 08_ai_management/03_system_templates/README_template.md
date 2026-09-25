@@ -66,18 +66,17 @@ The core analytical pipeline is executed sequentially from the root of the `04_s
 ├── CLAUDE.md                     # Core rules and instructions for Claude Code CLI
 ├── README.md                     # Human-readable project context and methodology
 ├── .gitignore                    # Prevents Git from tracking local Google Drive data
+├── .githooks/pre-commit          # Asks before large data files are committed (activate: git config core.hooksPath .githooks)
+├── .claude/                      # skills/ · hooks/ · settings.json (Claude Code permissions and guardrails)
 ├── 01_references/
-|   ├── 00_guidelines/            # Company guidelines (git workflow, path setup)
+│   ├── 00_guidelines/            # Company guidelines (git workflow, path setup)
 │   ├── 01_project_documentation/ # SoWs, IRB approvals, Project documentation, MoUs, Data Sharing Agreements
 │   ├── 02_literature/            # Academic papers and methodology manuals
 │   └── 03_past_examples/         # Historical reports, old tools, and reference materials
 ├── 02_survey_tools/
 │   ├── 01_quant_tools/           # Kobo XLSForms, CSVs of quantitative tools
 │   └── 02_qual_tools/            # KII guides, FGD protocols
-├── 03_data/                      # [NOT TRACKED IN GIT - STORED ON GDRIVE]
-│   ├── 01_raw_data/              # Unaltered Kobo exports and baseline data
-│   ├── 02_temp_data/             # Intermediate processing files
-│   └── 03_clean_data/            # Final datasets ready for analysis
+│   (no 03_data/ here — data lives only on Google Drive: 01_raw_data · 02_temp_data · 03_clean_data)
 ├── 04_scripts/                   # Main chronologically numbered execution scripts live here
 │   ├── 00_resources/             # Code snippets from past projects or general helpful syntax
 │   ├── 01_functions/             # User-created functions for complex/repetitive workflows used across scripts
@@ -88,7 +87,8 @@ The core analytical pipeline is executed sequentially from the root of the `04_s
 ├── 06_workspace/                 # Internal drafting and unstructured work
 │   ├── 01_notes/                 # Scratchpads, meeting notes
 │   ├── 02_exploratory/           # Quick/dirty EDA, internal sanity-check slides
-│   └── 03_document_review/       # Output folder for the AI doc-review skill
+│   ├── 03_document_review/       # Output folder for the AI doc-review skill
+│   └── 04_report_drafts/         # causal-report sources (body .qmd + report_spec.yaml)
 ├── 07_deliverables/              # Formal, compiled, human-facing products
 │   ├── 00_templates/             # Slide/Report templates
 │   ├── 01_decks/                 # Polished stakeholder presentations
@@ -96,13 +96,13 @@ The core analytical pipeline is executed sequentially from the root of the `04_s
 ├── 08_ai_management/
 │   ├── 01_progress_logs/         # Session logs (YYYY-MM-DD), PENDING.md queue, WORKSTREAMS.md topic board
 │   ├── 02_quality_reports/       # decision_log.md and AI-generated code reviews / audits
-│   ├── 03_system_templates/      # Formatting blueprints for AI generation (CLAUDE, README, log, decision, learning, workstream, qmd)
+│   ├── 03_system_templates/      # Formatting blueprints for AI generation (README, log, decision, learning, workstream, qmd)
 │   └── 04_knowledge_base/        # learnings.md, skills_backlog.md, methodology_*.md (see _examples/), transcripts/
 └── 09_legacy_vault/              # [READ-ONLY] Unorganized legacy code and data for AI migration
 ```
 
 **Understanding the Directory Structure**
-* **Data Separation:** To ensure reproducibility and security, raw data is never tracked. The `03_data` structure mirrors the Google Drive exactly, allowing scripts to easily point to local synced Drive paths.
+* **Data Separation:** To ensure reproducibility and security, data is never tracked. It lives only on Google Drive (`GDRIVE_PATH/01_raw_data`, `02_temp_data`, `03_clean_data`), and scripts reach it through the `DATA_RAW` / `DATA_TEMP` / `DATA_CLEAN` variables set in `04_scripts/00_setup_paths`. A pre-commit hook asks for confirmation before any large data file is committed (see `.githooks/pre-commit`).
 * **Script Modularity:** The main pipeline runs at the root of `04_scripts/`. Any custom algorithms or repetitive tasks (like formatting specific tables) are written once in `04_scripts/01_functions/` and sourced by the main scripts. `00_resources/` is purely for reference (borrowed code from old projects).
 * **Output Organization:** As you create and run individual scripts you might want to store figures and tables. All script-generated figures/tables go in `05_outputs/` (split into `01_figures` and `02_tables`). To improve organization, create a subfolder for each script/folder inside `04_scripts`.
 * **Deliverables:** Final, human-facing products (formal slide decks, Word/PDF reports for clients) belong strictly in `07_deliverables/`.

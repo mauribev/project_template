@@ -10,7 +10,7 @@ Its job is to make every new project start the same way: a fixed folder architec
 
 ## 1. Start a new project from this scaffold
 
-This scaffold lives on GitHub at **`github.com/mauribev/project-template`** as a *template repository*. Each new project is a **fresh copy with its own clean git history** — the scaffold itself stays pristine. Two ways to get one:
+This scaffold lives on GitHub at **`github.com/mauribev/project_template`** as a *template repository*. Each new project is a **fresh copy with its own clean git history** — the scaffold itself stays pristine. Two ways to get one:
 
 **A. "Use this template" (recommended, no terminal).** On the GitHub page, click the green **"Use this template" → "Create a new repository"** button. Name the new repo after your project, then clone it locally:
 ```bash
@@ -21,7 +21,7 @@ You get the full structure with a single clean commit and no inherited history.
 
 **B. Clone and re-initialise (manual).** If you'd rather copy the files directly:
 ```bash
-git clone https://github.com/mauribev/project-template.git my_new_project
+git clone https://github.com/mauribev/project_template.git my_new_project
 cd my_new_project
 rm -rf .git && git init          # drop the template's history, start your own
 git add -A && git commit -m "chore: scaffold new project"
@@ -37,9 +37,11 @@ Turning the blank scaffold into a live project:
 
 - [ ] **Install the project README.** `cp 08_ai_management/03_system_templates/README_template.md README.md`, then fill in every `[bracketed placeholder]`: project name, lead, status, objectives, research questions, methodology, GDrive link, data sources, language/packages, random seed, and the pipeline list.
 - [ ] **Create your paths file** — *do this before running any script.* Build `04_scripts/00_setup_paths.[R/py/do]` from `01_references/00_guidelines/setup_paths_template.md`, filling in the absolute path to your Google Drive (`GDRIVE_PATH`) and to this repo (`GITHUB_PATH`). Scripts read the data from Google Drive (not from the repo), so without this file nothing can find its inputs. It's the one file the agent may never edit — see Section 5 for the full rationale.
+- [ ] **Turn on the commit safety check** — every person, once per clone: `git config core.hooksPath .githooks`. Git never enables hooks on a fresh clone by itself. Skipping it breaks nothing; you just lose the large-file check (see *Safety net* in Section 5).
 - [ ] **Skim `CLAUDE.md`.** It is generic and ready to use. Delete the "Template note" blockquote at the top once you've read it. Only change a rule if this project genuinely needs a different convention — and if you do, record it in `decision_log.md`.
+- [ ] **Install the toolchain you will actually need.** Check these before the first deliverable is due, not the week it ships. The `causal-report` pipeline needs `quarto`, `pandoc`, `python3` with `lxml` / `pyyaml` / `docxcompose` (`pip3 install docxcompose`). Verifying a rendered document *by eye* additionally needs a `.docx` renderer (LibreOffice or Word) and the profile's font installed locally — without them every check is structural, and a layout error reaches the client unseen. On the project this scaffold was last updated from, all three gaps surfaced only at delivery time.
 - [ ] **Trim the workstreams.** Edit `08_ai_management/01_progress_logs/WORKSTREAMS.md` so its sections match the topics this project actually has (rename / add / delete).
-- [ ] **Check `.gitignore`.** Already tuned: it ignores `03_data/`, R/Python environments, and Office lock files, and whitelists the shareable `.claude/skills` etc. Adjust only if the project needs it.
+- [ ] **Check `.gitignore`.** Already tuned: it ignores `03_data/` (a backstop — the scaffold ships no local data folder, since data lives on GDrive), R/Python environments, Office lock files and report build trees, and whitelists the shareable `.claude/skills` etc. Adjust only if the project needs it.
 - [ ] **Seed the legacy vault (optional).** Drop any prior-project code/data you'll migrate *from* into `09_legacy_vault/` (read-only reference); remove its `.gitkeep` once populated.
 - [ ] **Decide on the examples.** `08_ai_management/04_knowledge_base/_examples/` holds format references from a past project — keep them as a depth guide or delete the folder.
 
@@ -90,10 +92,16 @@ An annotated inventory of the key files. Each has a matching blueprint in `08_ai
 ### The pathing system (`00_setup_paths`)
 **What it is for:** code lives in the repo, but the data lives on Google Drive (Section 3), and every person mounts that Drive at a *different* absolute path (e.g. yours starts `/Users/mauribev/Library/CloudStorage/GoogleDrive-…`, a colleague's looks nothing like it). If scripts hardcoded a path, they'd break the moment anyone else ran them. `00_setup_paths` solves this: it is a small config file that figures out the correct paths **for whoever is running the code right now** and stores them in named variables.
 
-**How it's used:** the file defines variables like `GITHUB_PATH` (this repo), `GDRIVE_PATH` (the Drive project folder), and derived data paths (`DATA_RAW`, `DATA_CLEAN`, …). **Every analysis script sources it as its very first line**, then refers to data only through those variables — e.g. read from `file.path(DATA_RAW, "household_survey.csv")` instead of a literal `/Users/...` path. The result: any script runs unchanged on any teammate's machine.
+**How it's used:** the file defines variables like `GITHUB_PATH` (this repo), `GDRIVE_PATH` (the project's `03_data` folder on Google Drive), and derived data paths (`DATA_RAW`, `DATA_CLEAN`, …). **Every analysis script sources it as its very first line**, then refers to data only through those variables — e.g. read from `file.path(DATA_RAW, "household_survey.csv")` instead of a literal `/Users/...` path. The result: any script runs unchanged on any teammate's machine.
 
 - **Create it once per machine** from the recipe in **`01_references/00_guidelines/setup_paths_template.md`** (ready-made R / Python / Stata versions, plus the syntax for running sequential scripts). You only fill in the absolute paths for *your* machine.
 - It is the **one file the AI is forbidden to modify** — it encodes machine-specific absolute paths that only you can know. If a path needs changing, the agent tells you and you edit it by hand.
+
+### Safety net (hooks and permissions)
+The most important guardrails are *enforced by tools*, not just written down:
+- **`.githooks/pre-commit`** — a git hook, run by git before every commit from anywhere (terminal, GitHub Desktop, RStudio, Claude). It lists any data file over 5 MB (`.csv`, `.xlsx`, `.dta`, `.rds`, …) or any file over 25 MB. In a terminal it asks `Commit anyway? [y/N]`; in apps that can't ask (GitHub Desktop) it stops the commit and explains how to proceed. Limits are set at the top of the script. Activate once per clone with `git config core.hooksPath .githooks`.
+- **`.claude/settings.json`** — Claude Code permissions for the project. Claude cannot edit `04_scripts/00_setup_paths.*`, anything in `09_legacy_vault/`, or Google Drive `01_raw_data/` folders; cannot run inline code (`Rscript -e`, `python -c`); and must ask before every `git commit` / `git push`.
+- **`.claude/hooks/check_large_files.sh`** — a Claude Code hook: before Claude commits, it adds the same large-file list to the confirmation prompt, so you decide file by file what enters the repository.
 
 ### Tracking files
 `PENDING.md`, `WORKSTREAMS.md` (in `01_progress_logs/`), and `decision_log.md` (in `02_quality_reports/`), plus the dated session logs — all described in Section 4. Blueprints: `log_template.md`, `decision_template.md`, `workstream_template.md`.
@@ -111,6 +119,7 @@ The blueprints the agent copies from when creating new files: `README_template.m
 Reusable `/slash-command` pipelines:
 - **`doc-to-md`** — convert PDF / Word documents to clean Markdown.
 - **`doc-review`** — produce a thorough, stand-alone review of a Markdown document.
+- **`causal-report`** — build a Causal Design client report as a formatted `.docx`. Front matter is authored in Word with `{{TOKEN}}` placeholders, the body in Quarto, and the two are stitched into one flat document. Every typographic and colour decision lives in `profiles/<name>/profile.yaml`, so the writer chooses a profile name, never a font. Supports a round trip: a reviewer's edited `.docx` can be merged back into the `.qmd` section by section. Ships a runnable style reference (`examples/01_elements.qmd`) that doubles as the pipeline's smoke test.
 
 Skills also work globally from `~/.claude/skills/`. After editing a project skill, sync it with `cp -R .claude/skills/<name> ~/.claude/skills/`. The full versioning/deprecation lifecycle is in `CLAUDE.md` §7.
 
@@ -127,12 +136,13 @@ Skills also work globally from `~/.claude/skills/`. After editing a project skil
 ├── CLAUDE.md            # Agent operating rules
 ├── README.md            # Project context (from README_template.md on setup)
 ├── .gitignore           # Keeps data + local cruft out of git
+├── .githooks/           # pre-commit: asks before large data files are committed
+├── .claude/             # skills/ · hooks/ · settings.json (Claude Code permissions)
 ├── 01_references/       # 00_guidelines · 01_project_documentation · 02_literature · 03_past_examples
 ├── 02_survey_tools/     # 01_quant_tools (XLSForms) · 02_qual_tools (KII/FGD guides)
-├── 03_data/             # [GITIGNORED — lives on GDrive] 01_raw_data · 02_temp_data · 03_clean_data
 ├── 04_scripts/          # 00_setup_paths · numbered pipeline · 00_resources · 01_functions · 99_replication
 ├── 05_outputs/          # 01_figures · 02_tables (subfoldered per script)
-├── 06_workspace/        # 01_notes · 02_exploratory · 03_document_review
+├── 06_workspace/        # 01_notes · 02_exploratory · 03_document_review · 04_report_drafts
 ├── 07_deliverables/     # 00_templates · 01_decks · 02_output_documents
 ├── 08_ai_management/    # 01_progress_logs · 02_quality_reports · 03_system_templates · 04_knowledge_base
 └── 09_legacy_vault/     # [READ-ONLY] old code/data to migrate from
@@ -146,4 +156,13 @@ The canonical structure with per-folder rationale is documented in full in `READ
 
 This template is a living asset — the canonical home for "how Causal Design runs a project." When a project surfaces a genuinely reusable convention, template, or skill, **port it back here** (stripping anything project-specific) and bump the version note below.
 
-**Scaffold version:** v1.0 — extracted from BRCiS III, June 2026. Adds the `WORKSTREAMS.md` board, `skills_backlog.md`, and the consolidated four-layer tracking model on top of the original folder scaffold.
+**Scaffold version:** v1.1 — back-ported from Matthew63 P2R, September 2026.
+- Adds the **`causal-report`** skill (v1.2.1) and the `06_workspace/04_report_drafts/` folder its workflow assumes, plus the `.gitignore` rules for report build trees.
+- **Drops the local `03_data/` stubs.** They were gitignored and therefore never reached a project created from this template — the scaffold now says plainly that data lives on Google Drive. `03_data/` stays in `.gitignore` as a backstop, and `CLAUDE.md` §2 was reworded to stop pointing at folders the scaffold does not ship.
+- Adds a **toolchain-dependency step** to the setup checklist: the report pipeline needs Quarto, pandoc and `docxcompose`, and verifying a document by eye needs a renderer and the house font. On P2R all three sat unnoticed until three deliverable checks were blocked on them.
+- Seeds `skills_backlog.md` with `deck-from-template` and files the deck-editing lesson in `_examples/`.
+- Adds the **safety net**: a git `pre-commit` hook that lists large data files and asks before committing them, a project `.claude/settings.json` that blocks Claude from editing the paths file / legacy vault / raw data and from running inline code, and a Claude Code hook that puts the large-file list into Claude's commit prompt.
+- Stops tracking the rendered `SKILL.html` / `SKILL_files/` previews inside skills, and ignores `CLAUDE.local.md` (personal instructions).
+- Fixes drift across the guidelines and templates: the Stata setup line (it referenced `$GITHUB_PATH` before defining it), stale folder names (`06_outputs`, `05_workspace`, `04_code`), the `03_data/` tree in `README_template.md`, a duplicated block in `decision_template.md`, and backup scripts that copied `.git/` onto the Shared Drive.
+
+**v1.0** — extracted from BRCiS III, June 2026. Adds the `WORKSTREAMS.md` board, `skills_backlog.md`, and the consolidated four-layer tracking model on top of the original folder scaffold.

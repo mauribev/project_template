@@ -1,0 +1,113 @@
+# Causal Design long report — design profile
+#
+# THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR THE DOCUMENT'S LOOK.
+#
+# Every typographic and colour value below is written into the Word styles at
+# build time by scripts/make_templates.py. To change how the report looks, edit
+# this file and rebuild -- do NOT restyle headings in Word, because the next
+# build will overwrite you.
+#
+# Word is still the right tool for the two things YAML cannot express: the cover
+# page layout and its graphics, and the live table-of-contents field. Those live
+# in frontmatter_source.docx and are never touched by code except for token
+# substitution.
+#
+# Sizes are in POINTS here and converted to Word's half-points by the build.
+
+name: long_report
+description: >-
+  Causal Design long-form client report. Cover, logo page, table of contents and
+  acronyms from a Word front matter; body authored in Quarto; the two stitched
+  into one flat .docx that opens correctly in Word and Google Docs.
+
+# --- Source documents ---------------------------------------------------------
+# frontmatter_source: hand-authored in Word. Holds the cover, the logo page, the
+#   TOC field and the acronyms table, with {{TOKENS}} where values go.
+# style_specimen: a reference specimen, NOT used by the pipeline. Open it to see
+#   the intended look of headings, tables and figure titles. The values below
+#   were read off it.
+sources:
+  frontmatter: frontmatter_source.docx
+  specimen: style_specimen.docx
+
+# Number of Word sections in the front matter that come BEFORE the body.
+# Here: 1 cover, 2 logo/"Prepared for", 3 TOC + acronyms. Section 4 is the body.
+frontmatter_sections: 3
+
+# --- Typography ---------------------------------------------------------------
+fonts:
+  body: Arial
+  # Substitution hint for machines where `body` is not installed.
+  fallback: Helvetica
+
+colors:
+  heading: "008CCC"    # H1-H3
+  accent: "D87373"     # H4
+  text: "000000"
+  white: "FFFFFF"
+
+# Every style below is fully specified: font, size, colour, emphasis, indent and
+# spacing. Anything NOT named here is cleared -- a heading that arrives from the
+# Word file with a left indent or small caps loses them, because this file is
+# what decides. Sizes are points; indents and spacing are twips (1440 = 1 inch).
+#
+# These are also every style pandoc actually emits for a report body, so the
+# list is complete rather than a sample:
+#   Normal         the document default
+#   BodyText       a normal paragraph
+#   FirstParagraph the first paragraph after a heading
+#   Compact        list items, and paragraphs inside table cells
+#   BlockText      a block quotation
+#   ImageCaption   caption under a figure
+#   TableCaption   caption above a table
+#   Heading1-5     section headings
+styles:
+  Normal:         {size: 10, color: text, indent: 0}
+  BodyText:       {size: 10, color: text, indent: 0, space_after: 120}
+  FirstParagraph: {size: 10, color: text, indent: 0, space_after: 120}
+  Compact:        {size: 10, color: text, space_after: 60}
+  BlockText:      {size: 10, color: text, italic: true, indent: 480, indent_right: 480, space_after: 120}
+  ImageCaption:   {size: 9,  color: text, italic: true, indent: 0, space_before: 60, space_after: 120}
+  TableCaption:   {size: 9,  color: text, italic: true, indent: 0, space_before: 60, space_after: 60}
+  Heading1:       {size: 19, color: heading, bold: true, indent: 0, page_break_before: true, space_after: 180}
+  Heading2:       {size: 15, color: heading, bold: true, indent: 0, space_before: 240, space_after: 120}
+  Heading3:       {size: 13, color: heading, bold: true, indent: 0, space_before: 200, space_after: 100}
+  Heading4:       {size: 11, color: accent,  bold: true, small_caps: true, indent: 0, space_before: 200, space_after: 80}
+  Heading5:       {size: 11, color: text,    bold: true, small_caps: true, underline: true, indent: 0, space_before: 160, space_after: 80}
+
+# --- Tables -------------------------------------------------------------------
+# Written into the Word table style named `Table`, which is the style id pandoc
+# assigns to every table it emits. Pandoc also writes
+#   <w:tblLook w:firstRow="1" w:noHBand="0" .../>
+# which is what tells Word to apply the firstRow and banding rules below. The
+# result: any pipe table in the .qmd gets this look with no extra markup.
+table:
+  style_id: Table
+  borders: none
+  body:   {size: 9, color: text}
+  header: {size: 9, color: white, fill: "008CCC", bold: true}
+  bands:  {odd: "FFFFFF", even: "D4E2E9"}
+
+# --- Page ---------------------------------------------------------------------
+# Twips: 1440 = 1 inch. Letter is 12240 x 15840.
+page:
+  width: 12240
+  height: 15840
+  margins: {top: 1440, bottom: 1440, left: 1440, right: 1440, header: 720, footer: 720}
+
+# --- Body render --------------------------------------------------------------
+render:
+  toc: false              # the TOC lives in the front matter, as a live Word field
+  number_sections: false  # section numbers are typed into headings (see SKILL.md)
+  fig_dpi: 300
+  fig_width: 7.0
+  fig_height: 3.2
+
+# --- Tokens -------------------------------------------------------------------
+# Every {{TOKEN}} the front matter is expected to contain. The build fails if the
+# front matter holds a token absent from the report spec, and warns if a spec
+# value never appears. Matching is case-insensitive, and tokens split across Word
+# runs are rejoined before substitution -- Word does that on its own, silently.
+tokens:
+  required: [TITLE, SUBTITLE, CLIENT, DATE]
+  optional: [COUNTRY, PROJECT, STATUS, DOC_TYPE]
