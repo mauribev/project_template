@@ -57,7 +57,7 @@
 3. **Turn on the commit safety check:** in a terminal at the project folder, run `git config core.hooksPath .githooks` once. This activates the pre-commit hook that asks before large data files are committed (see Section 5).
 4. **Activate the Project README:** * Copy `README_template.md` from `08_ai_management/03_system_templates/` into the root directory as `README.md` (replacing the scaffold's own README).
    * Open it and fill in the project-specific details (Project Name, PI, methodology, etc.).
-   * `CLAUDE.md` is already in the root and ready to use — just delete the "Template note" at the top once you've read it. (There is no separate CLAUDE template to copy.)
+   * `CLAUDE.md` is already in the root and ready to use — fill in its *Commands* section. (Its template note is an HTML comment, which Claude never sees; delete it or keep it.) (There is no separate CLAUDE template to copy.)
 5. **Create the Setup File:**
    * Open `01_references/00_guidelines/setup_paths_template.md`.
    * Copy the code for your primary language (R, Stata, or Python) and save it as a new file in `04_scripts/` named `00_setup_paths.[R/do/py]`. Configure your local paths inside it.
