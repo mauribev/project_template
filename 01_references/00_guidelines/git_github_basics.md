@@ -1,33 +1,62 @@
 # Git & GitHub — The Basics, Explained Simply
 
-This guide explains *how* Git and GitHub work, so that the team routine in `git_team_workflow.md` makes sense. It follows one small example from start to finish. Read it once top to bottom; afterwards, the cheat sheet (Section 13), the FAQ (Section 14) and the glossary (Section 15) are there for quick reference.
+This guide explains *how* Git and GitHub work, so that the team routine in `git_team_workflow.md` makes sense. **Section 0 is all you need day to day.** The rest explains it with one small, real example — read it once, then come back to the cheat sheet (Section 11) and FAQ (Section 12) when needed.
 
-**Two kinds of boxes appear in this guide:**
-- **Command output** — exactly what Git prints when you run the command shown after `$`. These were produced by running the commands on a real (small) repository; a few repeated hint lines were trimmed for readability. The commit IDs (like `1e9b60c`) will be different on your computer.
-- **Diagram** — a drawing to explain an idea. Git does not print these.
+Two kinds of boxes appear below:
+- **Command output** — exactly what Git prints for the command after `$`, produced on a real (small) repository. A few repeated hint lines are trimmed; your commit IDs (like `1e9b60c`) will differ.
+- **Diagram** — a drawing to explain an idea. Git never prints these.
+
+---
+
+## 0. The everyday loop on one screen
+
+```
+# Start a task
+git switch main                      # go to main                          (Section 5, Step 0)
+git pull                             # get the latest from GitHub
+git switch -c fix/short-name         # a new branch for this task          (Step 1)
+
+# While working — at every milestone
+git status                           # which files changed?                (Section 3)
+git diff                             # what exactly changed?
+git add -A                           # put the changes in the "basket"     (Section 2)
+git diff --staged --stat             # check what will be saved
+git commit -m "fix: what you did"    # save                                (Step 4)
+
+# Share
+git push -u origin fix/short-name    # upload the branch (later just: git push)   (Step 6)
+#   → on github.com: open a pull request, review, merge                          (Section 6)
+
+# Tidy up after the merge
+git switch main
+git pull                             # your main catches up with GitHub     (Step 8)
+git branch -d fix/short-name         # delete the finished branch
+git fetch --prune                    # forget branches deleted on GitHub
+```
+
+**Where to type these commands:**
+- a **terminal** opened in the project folder (Terminal on Mac; *Git Bash* on Windows; or the *Terminal* tab in RStudio / VS Code);
+- inside **Claude Code**, by starting the line with `!` (e.g. `! git status`) — the output appears in the conversation, so Claude can explain it;
+- or use **GitHub Desktop**, which has a button for each step (named in Section 5).
 
 ---
 
 ## 1. The example used throughout
 
-Maria works on a midline evaluation. The project repository contains, among other things, a cleaning script and the README:
+Maria works on a midline evaluation. Her repository contains, among other things:
 
 ```
 04_scripts/02_clean.R     ← merges the baseline and midline surveys
 README.md                 ← project documentation, with a "Changes" list
 ```
 
-The data itself (`baseline.rds`, `midline.rds`, …) is **not** in the repository — it lives on Google Drive and the script reads it from there (Section 9 explains why that matters).
+The data itself is **not** in the repository — it lives on Google Drive, and the script reads it from there (Section 9 explains why that matters).
 
-Maria has found a bug: households are merged on `hh_id` alone, but `hh_id` repeats across villages, so the merge must use `hh_id` **and** `village_id`. She will fix the script and add a line to the README.
-
-At the start, everything is up to date: her computer and GitHub hold exactly the same version of the project.
+Maria has found a bug: households are merged on `hh_id` alone, but `hh_id` repeats across villages, so the merge must use `hh_id` **and** `village_id`. She will fix the script and add a line to the README. At the start, her computer and GitHub hold exactly the same version of the project.
 
 ---
 
 ## 2. The four places your work lives
-
-Every change travels through up to four places. Understanding them is 80% of understanding Git.
 
 **Diagram:**
 ```
@@ -40,50 +69,43 @@ Every change travels through up to four places. Understanding them is 80% of und
                                                                         ◄──git pull───
 ```
 
-1. **Your folder.** When Maria edits `02_clean.R` in RStudio, the change is in her folder. Git *notices* it, but nothing is saved in Git yet.
-2. **The staging area ("basket").** `git add` puts a change in the basket: "this goes into my next save". Nothing is saved yet; she can still take it out (`git restore --staged <file>`).
+1. **Your folder.** When Maria edits `02_clean.R`, the change is in her folder. Git *notices* it but has saved nothing.
+2. **The basket.** `git add` puts a change in the basket: "this goes into my next save". She can still take it out (`git restore --staged <file>`).
 3. **History.** `git commit` saves whatever is in the basket as a permanent snapshot — a **commit** — on her computer only.
-4. **GitHub.** `git push` uploads her commits so the team can see them; `git pull` downloads the team's commits to her computer.
+4. **GitHub.** `git push` uploads her commits; `git pull` downloads her colleagues' commits.
 
-**Why a basket at all?** So you choose what goes into each save. Maria can commit the script fix on its own, the README note separately, and leave a half-finished experiment out entirely. Think of **add** as *putting things in a box* and **commit** as *sealing and labelling the box*.
+**Why a basket?** So you choose what goes into each save: the script fix in one commit, the README note in another, a half-finished experiment in none. Think of **add** as *putting things in a box* and **commit** as *sealing and labelling it*. With Claude Code you rarely type `git add` yourself: Claude adds and commits at milestones and asks you first.
 
-> **Important:** until you commit, a change belongs to **no branch**. It just sits in your folder (or basket). Branches are explained in Section 4; keep this sentence in mind.
+> **Keep in mind:** until you commit, a change belongs to **no branch** — it just sits in your folder.
 
 ---
 
 ## 3. Seeing what changed: `git status`, `git diff`, `git diff --staged`
 
-Before saving anything, you want to *look* at what you are about to save — to catch mistakes, stray files, or data that should not be there. Three commands do this. Each one answers a different question:
+Before saving, *look* at what you are saving — to catch mistakes, stray files, or data that doesn't belong. Each command answers a different question:
 
 | Command | Question it answers | Compares |
 |---|---|---|
 | `git status` | *Which files* changed, and which are in the basket? | — (a list, no content) |
-| `git diff` | What exactly did I change that is **not in the basket yet**? | your folder ↔ the basket |
-| `git diff --staged` | What exactly **will my next commit contain**? | the basket ↔ your last commit |
+| `git diff` | What did I change that is **not in the basket yet**? | your folder ↔ the basket |
+| `git diff --staged` | What **will my next commit contain**? | the basket ↔ your last commit |
 
-Add `--stat` to either diff for a one-line-per-file summary instead of the full content.
+Add `--stat` to either diff for a one-line-per-file summary.
 
-### Seeing it on the example
-
-Maria has edited both files but not added anything yet.
+### On the example
+Maria has edited both files and added nothing yet:
 
 **Command output:**
 ```
 $ git status
 On branch fix/merge-key
 Changes not staged for commit:
-  (use "git add <file>..." to update what will be committed)
-  (use "git restore <file>..." to discard changes in working directory)
 	modified:   04_scripts/02_clean.R
 	modified:   README.md
-
-no changes added to commit (use "git add" and/or "git commit -a")
 ```
-Both files are *"not staged"*: changed in her folder, not in the basket. (In a terminal with colours they appear in red.)
+Both files are changed in her folder, not in the basket. `git diff` shows both changes; `git diff --staged` shows **nothing** — not because nothing was committed, but because **the basket is empty**.
 
-`git diff` would now show the changes in both files, and `git diff --staged` shows **nothing at all** — not because nothing was committed, but because **the basket is empty**, so it is identical to the last commit.
-
-Now she puts only the script into the basket:
+She puts only the script in the basket:
 
 **Command output:**
 ```
@@ -92,32 +114,25 @@ $ git add 04_scripts/02_clean.R
 $ git status
 On branch fix/merge-key
 Changes to be committed:
-  (use "git restore --staged <file>..." to unstage)
 	modified:   04_scripts/02_clean.R
-
 Changes not staged for commit:
 	modified:   README.md
 
 $ git diff --stat
  README.md | 1 +
- 1 file changed, 1 insertion(+)
 
 $ git diff --staged --stat
  04_scripts/02_clean.R | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
 ```
-The two diffs have split the work between them: `git diff` shows only the README (changed, not in the basket); `git diff --staged` shows only the script (in the basket — this is what the next commit will contain).
 
-| File | In the folder | In the basket | Shown by |
+| File | Changed in folder | In the basket | Shown by |
 |---|---|---|---|
-| `02_clean.R` | changed | ✔ added | `git diff --staged` |
-| `README.md` | changed | ✘ not added | `git diff` |
+| `02_clean.R` | ✔ | ✔ | `git diff --staged` (will be committed) |
+| `README.md` | ✔ | ✘ | `git diff` (will not) |
 
-One more thing: **a brand-new file is invisible to `git diff`** — Git only compares files it already knows. After `git add`, a new file shows up in `git diff --staged` (entirely as added lines).
+A **brand-new file** is invisible to `git diff` — Git only compares files it already knows. After `git add` it appears in `git diff --staged`.
 
 ### How to read a diff
-
-This is the full `git diff` for the script, before it was added:
 
 **Command output:**
 ```
@@ -138,237 +153,165 @@ index b7d85ab..fac1921 100644
  # 3. Save
  saveRDS(hh, file.path(DATA_CLEAN, "panel.rds"))
 ```
+- `diff --git a/… b/…` — which file; **`a/` = before your change, `b/` = after**. The `index` line is internal — ignore it.
+- `@@ -2,8 +2,8 @@` — this excerpt starts at line 2 and covers 8 lines, before and after. A file changed in several places has several such blocks.
+- Lines starting with a **space** are unchanged context; **`-`** lines were removed (red on screen), **`+`** lines added (green).
 
-Line by line:
-- `diff --git a/… b/…` — which file. **`a/` is the version before your change, `b/` the version after.**
-- `index b7d85ab..fac1921 100644` — Git's internal IDs for the two versions. Ignore it.
-- `--- a/…` and `+++ b/…` — a legend: lines marked `-` come from the *before* version, lines marked `+` from the *after* version.
-- `@@ -2,8 +2,8 @@` — a **hunk header**: "this excerpt starts at line 2 and covers 8 lines, before (`-2,8`) and after (`+2,8`)". A file with changes in several places has several hunks.
-- Lines starting with a **space** are unchanged, shown only as context so you can see *where* the change is.
-- Lines starting with **`-`** were removed (red on screen); lines starting with **`+`** were added (green).
+So: *"the comment and the merge line were replaced; everything else is unchanged."* Git works **line by line** — changing one word shows the whole line removed and re-added. That is also why an edited line counts as 1 deletion + 1 insertion in `--stat`.
 
-So this diff says: *"in `02_clean.R`, the comment and the merge line were replaced; everything else is unchanged."* Note that Git works **line by line**: Maria changed a few words on each line, but Git shows the whole line removed and the whole new line added.
-
-**In practice** most people read diffs in a visual tool rather than the terminal: GitHub Desktop (click a file in the *Changes* tab), RStudio's Git pane (*Diff* button), VS Code (*Source Control*), or a pull request's *Files changed* tab on GitHub. They show the same information, side by side and coloured.
+Most people read diffs in a visual tool: GitHub Desktop (click a file), RStudio's Git pane (*Diff*), VS Code (*Source Control*), or a pull request's *Files changed* tab.
 
 ---
 
-## 4. Commits and branches
+## 4. Commits, branches, and where you are
 
-### A commit is a snapshot
-Each commit is a saved snapshot of the whole project with a short ID (like `1e9b60c`), the author, the date and a message. Every commit remembers the one before it, so the history is a **chain**.
-
-**Diagram** (in the diagrams, commits are drawn as letters — `A`, `B`, `C` — instead of long IDs; the arrow points from a commit back to the one before it):
+### A commit is a snapshot; a branch is a label
+Each **commit** is a saved snapshot of the whole project with a short ID, an author, a date and a message. Each commit remembers the one before it, so history is a chain. **Diagram** (commits drawn as letters; arrows point back in time):
 ```
 A ◄── B ◄── C
-(oldest)    (newest)
 ```
+A **branch is not a copy of your files.** It is a *label* on one commit.
+- `main` is the label of the version everyone trusts.
+- When you commit while "on" a branch, **that label moves forward** to the new commit; all other labels stay put.
+- Creating a branch attaches a new label to the commit you are on — nothing is copied, no file changes.
+- Two labels can sit on the same commit; they separate when someone commits on one of them.
 
-### A branch is a label on a commit
-This is the part that confuses most people: **a branch is not a copy of your files.** It is a *label* (a sticky note with a name) attached to one commit.
+**Why branches?** So unfinished work doesn't touch `main`: Maria can make several commits on `fix/merge-key` while the `main` her colleagues pull stays unchanged — until the fix is reviewed and merged (Section 6).
 
-- `main` is simply the label of the version everyone trusts.
-- When you commit while you are "on" a branch, **that label moves forward** to the new commit. All other labels stay where they were.
-- Creating a new branch just attaches a new label to the commit you are on. **Nothing is copied and no file changes.**
-- Two labels can sit on the **same commit** — two names for the same point in history. They only separate when someone commits on one of them.
+### The map: `git log --oneline --graph --all --decorate`
+Use it when you want to know **where you are**: which branches exist, which one you are on, and whether you are ahead of or behind GitHub. (`--oneline`: one line per commit; `--graph`: draw the lanes; `--all`: every branch; `--decorate`: show the labels.)
 
-**Why use branches?** So that unfinished work doesn't touch `main`. Maria can make several commits on `fix/merge-key` while `main` — the version her colleagues pull — stays exactly as it was, until the fix is finished and reviewed (Section 6).
-
-### Seeing the labels: `git log --oneline --graph --all --decorate`
-You use this command when you want to know **where you are**: which branches exist, which one you are on, and whether your computer is ahead of or behind GitHub. It is the Git equivalent of a map with a "you are here" marker.
-
-- `--oneline`: one line per commit (ID + message)
-- `--graph`: draw the lines connecting commits when branches split and join
-- `--all`: show every branch, not just the current one
-- `--decorate`: print the labels (branch names) next to the commits they sit on
-
-Here is Maria's map right after she created her branch and made her first commit (Section 5 shows how she got there):
-
-**Command output:**
+**Command output** — Maria after her first commit on her branch:
 ```
 $ git log --oneline --graph --all --decorate
 * 1e9b60c (HEAD -> fix/merge-key) fix: merge on hh_id + village_id
 * 730e8a7 (origin/main, main) chore: start project
 ```
-- Each `*` is a commit, newest at the top.
-- The names in brackets are the labels sitting on that commit.
-- **`HEAD -> fix/merge-key`** — `HEAD` means "**you are here**": Maria is on the branch `fix/merge-key`, so her next commit will move that label.
-- **`main`** — her own `main` label is still on the older commit `730e8a7`: the fix is not in `main`.
-- **`origin/main`** — `origin` is Git's nickname for the GitHub copy of the project. `origin/main` shows where `main` is **on GitHub** (as of the last time her computer talked to GitHub). Since `main` and `origin/main` sit on the same commit, her computer and GitHub agree about `main`.
-
-`--all` shows every branch on your computer plus the known GitHub positions (`origin/...`). Branches are not "open" or "closed" — they are labels that exist until someone deletes them.
+- Each `*` is a commit, newest on top; the names in brackets are the labels on it.
+- **`HEAD -> fix/merge-key`** — `HEAD` means **"you are here"**: her next commit will move this label.
+- **`main`** — her own `main` is still on the older commit: the fix is not in `main`.
+- **`origin/main`** — `origin` is Git's nickname for GitHub; `origin/main` is where `main` is **on GitHub** (see below).
 
 ### GitHub and your computer: four things to keep apart
-Most confusion about Git comes from mixing up *where* a version lives. At any moment there are four separate things — one in the cloud and three on your computer:
+Most confusion comes from mixing up *where* a version lives. There are four separate things — one in the cloud, three on your computer:
 
-| # | Where | What it is | When it changes |
+| # | Where | What it is | Changes when… |
 |---|---|---|---|
-| 1 | **GitHub** | The real, shared repository in the cloud. | When someone pushes, or merges a pull request on the website. |
-| 2 | **`origin/main`** (your computer) | Your computer's **last known photo** of where `main` is on GitHub. | Only when your computer talks to GitHub: `git fetch`, `git pull`, `git push`. |
-| 3 | **`main`** (your computer) | *Your own* `main` branch — a label on a commit in your local history (`.git`). | Only when *you* commit on it or pull into it. |
-| 4 | **Your folder** | The files you see and edit. | Shows **whichever branch you are on** — and changes when you switch branch or pull. |
+| 1 | **GitHub** | The shared repository in the cloud | someone pushes, or merges a pull request on the website |
+| 2 | **`origin/main`** (your computer) | Your computer's **last known photo** of GitHub's `main` | your computer talks to GitHub: `git fetch`, `git pull`, `git push` |
+| 3 | **`main`** (your computer) | *Your own* `main` label, in your local history | *you* commit on it or pull into it |
+| 4 | **Your folder** | The files you see | you switch branch or pull — it shows **whichever branch you are on** |
 
-**GitHub never changes anything on your computer by itself.** Your computer only learns what happened on GitHub when you ask it to.
+**GitHub never changes anything on your computer by itself.** Your computer only learns what happened when you ask.
 
-**Worked through for Maria's pull request** (Section 5, Steps 7–8). She is on her branch `fix/merge-key` when the pull request is merged on the website:
+**Worked through** — Maria is on her branch when her pull request is merged on the website:
 
-| Moment | 1. `main` on GitHub | 2. `origin/main` (photo) | 3. Maria's `main` | 4. Folder shows |
+| Moment | 1. GitHub `main` | 2. Photo `origin/main` | 3. Maria's `main` | 4. Folder shows |
 |---|---|---|---|---|
-| Before the merge | `730e8a7` | `730e8a7` | `730e8a7` | her branch `fix/merge-key` |
-| **Merge** clicked on GitHub | **`ba1315e`** ← moved | `730e8a7` (old photo) | `730e8a7` | `fix/merge-key` |
-| She runs `git fetch` | `ba1315e` | **`ba1315e`** ← new photo | `730e8a7` | `fix/merge-key` |
-| She runs `git switch main` | `ba1315e` | `ba1315e` | `730e8a7` | **`main`** — the *old* version |
-| She runs `git pull` | `ba1315e` | `ba1315e` | **`ba1315e`** ← caught up | `main` — the **new** version |
+| Before the merge | `730e8a7` | `730e8a7` | `730e8a7` | her branch |
+| **Merge** clicked on GitHub | **`ba1315e`** | `730e8a7` (old photo) | `730e8a7` | her branch |
+| `git fetch` | `ba1315e` | **`ba1315e`** | `730e8a7` | her branch |
+| `git switch main` | `ba1315e` | `ba1315e` | `730e8a7` | `main` — the **old** version |
+| `git pull` | `ba1315e` | `ba1315e` | **`ba1315e`** | `main` — the **new** version |
 
-After the merge only column 1 changed; each command then brings one more column up to date. Once all four agree, everything is in sync.
+Each command brings one more column up to date; when all four agree, you are in sync.
 
-### `git fetch` vs `git pull`
-- **`git fetch`** — *"GitHub, what's new?"* Downloads new commits into your local history and **updates the photo** (`origin/...` labels). It does **not** move your own branches and does **not** touch your files. Always safe; use it to *look* before doing anything.
-- **`git pull`** — a fetch **plus** it moves *your current branch* forward to match GitHub **plus** it updates the files in your folder. Use it on `main` to bring your copy up to date.
+- **`git fetch`** — *"GitHub, what's new?"* Updates the photo (`origin/...` labels) only. Your branches and files don't change. Always safe.
+- **`git pull`** — a fetch **plus** moving your current branch forward **plus** updating your files.
 
-**Command output — what a fetch reports** after a pull request was merged on GitHub:
+**Command output** — what a fetch reports after a merge on GitHub:
 ```
 $ git fetch
 From https://github.com/your-team/midline-project
    730e8a7..ba1315e  main       -> origin/main
 ```
-Read it as: *"`main` on GitHub moved from `730e8a7` to `ba1315e`; I updated your photo `origin/main` accordingly."* Your own `main` and your files are unchanged until you pull.
+*"`main` on GitHub moved from `730e8a7` to `ba1315e`; your photo is updated."*
 
-**"Committed" vs "in my folder."** Everything in the tables above except column 4 is *committed history*: labels on commits stored in `.git`. Your folder is a separate matter — it simply displays one branch. Uncommitted edits exist only in the folder (Section 2) and never appear on GitHub until they are committed and pushed.
+> **"Behind by N commits" can be out of date.** `git status` compares your branch with the *photo*, not with GitHub itself. If you haven't fetched since the last merge, the number is too small. `git fetch` (or `git pull`) first, then trust it.
 
 ---
 
-## 5. Step by step: saving work on a branch (the recommended way)
+## 5. Step by step: saving work on a branch
 
-This follows Maria's fix from start to finish. Each step says **why**, the **command**, what **GitHub Desktop** shows, and **what actually happens**.
+Each step: **why**, the **command**, the **GitHub Desktop** equivalent, and what **actually happens**.
 
-### Step 0 — Start from the latest `main`
-**Why:** colleagues may have added work since yesterday; you want to build on top of it.
-
-**Command output:**
+**Step 0 — Start from the latest `main`.** *Why:* build on your colleagues' latest work.
 ```
 $ git switch main
-Already on 'main'
-Your branch is up to date with 'origin/main'.
-
 $ git pull
 Already up to date.
 ```
-*GitHub Desktop:* set *Current Branch* to `main`, click **Fetch origin**, then **Pull origin** if it is offered.
+*Desktop:* Current Branch = `main` → **Fetch origin** → **Pull origin** if offered.
+If you are behind, `git pull` downloads the new commits **and updates the files in your folder** (never your data on Drive). Your uncommitted edits are kept — if an incoming change would overwrite one, Git stops and names the file.
 
-**What `git pull` does when you are behind:** it downloads the new commits from GitHub and **updates the files in your folder** to the latest version — yes, the files change on disk (only files in the repository; your data on Google Drive is untouched). Your own uncommitted edits are kept; if an incoming change would overwrite one of them, Git refuses and tells you which file, rather than losing your work. Section 8 shows a pull that brings in a colleague's work.
-
-**Diagram — the situation now:**
-```
-A  ◄── main, origin/main  (HEAD: Maria is on main)        folder: no changes
-```
-
-### Step 1 — Create a branch for the task
-**Why:** to keep the fix away from `main` until it is finished. Do this **before you start editing** — it is the first step of a task. (If you forget, nothing is lost: uncommitted edits belong to no branch, so create the branch before your first commit and the edits come along.)
-
-**Command output:**
+**Step 1 — Create a branch for the task.** *Why:* keep the work away from `main` until it is finished. Do it **before** editing (if you forget, create it before your first commit — uncommitted edits come along).
 ```
 $ git switch -c fix/merge-key
 Switched to a new branch 'fix/merge-key'
-
-$ git status
-On branch fix/merge-key
-nothing to commit, working tree clean
 ```
-`switch -c` means "create (`-c`) a branch with this name and switch to it". *GitHub Desktop:* **Current Branch → New Branch**.
+*Desktop:* **Current Branch → New Branch**. A new label on the same commit; no file changes.
 
-**Diagram:**
-```
-A  ◄── main, origin/main, fix/merge-key  (HEAD: Maria is on fix/merge-key)
-```
-A new label on the same commit. No file changed.
+**Step 2 — Work.** Maria edits both files in RStudio. `git status` / `git diff` show the changes (Section 3).
 
-### Step 2 — Do the work
-Maria edits `02_clean.R` and `README.md` in RStudio as usual. `git status` lists both as *"not staged"*, `git diff` shows the changes, `git diff --staged` is empty (Section 3).
+**Step 3 — Add.** `git add 04_scripts/02_clean.R`, then `git diff --staged` to check. *Desktop:* the checkboxes in the *Changes* tab **are** the basket.
 
-### Step 3 — Put the script fix in the basket
-**Why:** she wants the fix saved as one clear commit, separately from the README note.
-
-`git add 04_scripts/02_clean.R` — and `git diff --staged` now shows exactly what will be committed (Section 3).
-*GitHub Desktop:* the checkboxes next to each file in the *Changes* tab **are** the basket: tick `02_clean.R` only.
-
-### Step 4 — Commit
-**Command output:**
+**Step 4 — Commit.**
 ```
 $ git commit -m "fix: merge on hh_id + village_id"
 [fix/merge-key 1e9b60c] fix: merge on hh_id + village_id
  1 file changed, 2 insertions(+), 2 deletions(-)
 ```
-Git confirms which branch received the commit (`fix/merge-key`) and its ID (`1e9b60c`). *GitHub Desktop:* type the summary and click **Commit to fix/merge-key** — the button always names the branch you are on.
-
-**Diagram — only the label she is on moved:**
+Git confirms the branch that received the commit and its ID. *Desktop:* **Commit to fix/merge-key** (the button always names your branch). Only the label you are on moves — **Diagram:**
 ```
 A ◄── B
 ▲     ▲
 main  fix/merge-key (HEAD)
-origin/main
 ```
 
-### Step 5 — Commit the README note too
-`git add README.md`, then `git commit -m "docs: note merge-key fix"`. Several small commits on a branch are normal and useful.
-
-**Command output:**
+**Step 5 — Commit the README too** (`git add README.md`, `git commit -m "docs: note merge-key fix"`). Several small commits per task are normal.
 ```
 $ git log --oneline --graph --all --decorate
 * ca685c5 (HEAD -> fix/merge-key) docs: note merge-key fix
 * 1e9b60c fix: merge on hh_id + village_id
 * 730e8a7 (origin/main, main) chore: start project
 ```
-Two new commits on her branch; `main` has not moved. **So far everything is only on Maria's computer.**
+**So far everything is only on Maria's computer.**
 
-### Step 6 — Push the branch to GitHub
-**Why:** to back the work up and make it visible to the team — without touching `main`.
-
-**Command output:**
+**Step 6 — Push the branch.** *Why:* back it up and make it visible — without touching `main`.
 ```
 $ git push -u origin fix/merge-key
+remote: Create a pull request for 'fix/merge-key' on GitHub by visiting:
+remote:      https://github.com/your-team/midline-project/pull/new/fix/merge-key
 To https://github.com/your-team/midline-project.git
  * [new branch]      fix/merge-key -> fix/merge-key
 branch 'fix/merge-key' set up to track 'origin/fix/merge-key'.
 ```
-- `git push` — upload commits.
-- `origin` — *where to*: the GitHub copy.
-- `fix/merge-key` — *which* branch.
-- `-u` — "remember this pairing", so from now on a plain `git push` / `git pull` on this branch needs no extra words. Only needed the first time. *GitHub Desktop:* **Publish branch** does the same.
+`origin` = to GitHub; `fix/merge-key` = which branch; `-u` = remember the pairing, so next time a plain `git push` works. Lines starting with `remote:` are messages *from GitHub* — here, a shortcut link to open the pull request. *Desktop:* **Publish branch**.
 
-**Command output:**
-```
-$ git log --oneline --graph --all --decorate
-* ca685c5 (HEAD -> fix/merge-key, origin/fix/merge-key) docs: note merge-key fix
-* 1e9b60c fix: merge on hh_id + village_id
-* 730e8a7 (origin/main, main) chore: start project
-```
-The new label `origin/fix/merge-key` shows the branch now exists on GitHub too. `origin/main` has not moved: **`main` on GitHub is untouched.**
+**Step 7 — Pull request, review, merge — on github.com** (Section 6). From the moment of the merge, `main` **on GitHub** contains the fix.
 
-### Step 7 — Open a pull request, review, merge (on github.com)
-This happens in the browser and is explained in detail in Section 6. In short: Maria asks GitHub to merge `fix/merge-key` into `main`, looks over the changes once more (or a colleague does), and clicks **Merge**. From that moment `main` **on GitHub** contains the fix.
-
-### Step 8 — Bring your computer up to date and tidy up
-**Why:** the merge happened on GitHub, so Maria's computer doesn't know about it yet — her own `main` label is still on the old commit.
-
-**Command output:**
+**Step 8 — Catch up and tidy up.** *Why:* the merge happened on GitHub; your computer doesn't know yet (Section 4, the four-column table).
 ```
 $ git switch main
-Switched to branch 'main'
+Your branch is up to date with 'origin/main'.      ← the photo is old: nothing fetched yet
 
 $ git pull
 Updating 730e8a7..ba1315e
 Fast-forward
  04_scripts/02_clean.R | 4 ++--
  README.md             | 1 +
- 2 files changed, 3 insertions(+), 2 deletions(-)
 
 $ git branch -d fix/merge-key
 Deleted branch fix/merge-key (was ca685c5).
-```
-`git pull` downloaded the merged work and updated the two files in her folder (*Fast-forward* means her `main` label simply moved forward to the new commit). Section 4, *GitHub and your computer*, follows these same steps column by column. `git branch -d` deleted the branch label, which is no longer needed. **Deleting a branch deletes only the label; its commits are now part of `main` forever.** (Also click **Delete branch** on the pull-request page to remove GitHub's copy of the label.)
 
-**Command output — the final map:**
+$ git fetch --prune
+ - [deleted]         (none)     -> origin/fix/merge-key
+```
+- `git pull` downloaded the merged work and updated the files; **Fast-forward** means her `main` label simply moved forward.
+- `git branch -d` deletes the label — **only the label; the commits are now part of `main` for good.** (Lowercase `-d` refuses if the work isn't merged yet — a safety check.)
+- `git fetch --prune` removes the photo of the branch that was deleted on GitHub.
+
+**The final map:**
 ```
 $ git log --oneline --graph --all --decorate
 *   ba1315e (HEAD -> main, origin/main) Merge pull request #1 from fix/merge-key
@@ -378,71 +321,57 @@ $ git log --oneline --graph --all --decorate
 |/
 * 730e8a7 chore: start project
 ```
-Read the lines on the left as a road map: the history split at `730e8a7`, the two commits happened on the side road (the branch), and they joined `main` again at the **merge commit** `ba1315e`. Maria is back where she started — everything up to date — ready for the next task.
+Read the lanes as a road map: history split at `730e8a7`, the two commits happened on the side road, and they joined `main` at the **merge commit** `ba1315e`.
 
-### The alternative: committing straight to `main`
-Same start, but she skips Step 1 and commits on `main` directly. The saving commands are **exactly the same** (`status → diff → add → diff --staged → commit`); the only difference is that the `main` label moves:
-
-**Command output:**
+### The shortcut: committing straight to `main`
+Skip Step 1. The saving commands are **identical**; the commit simply lands on `main`:
 ```
 $ git status
-On branch main
 Your branch is ahead of 'origin/main' by 1 commit.
-  (use "git push" to publish your local commits)
 
 $ git push
-To https://github.com/your-team/midline-project.git
    ba1315e..5892250  main -> main
 ```
-*"Ahead by 1 commit"* means her computer has a commit GitHub doesn't. After `git push`, GitHub's `main` includes it — immediately, with no review and no pull request.
+No pull request, no review. If a colleague pushed in the meantime, GitHub **rejects** the push (*"fetch first"*): `git pull`, then `git push` again.
 
-**The catch:** if a colleague pushed to `main` since Maria's last pull, GitHub **rejects** her push (*"rejected — fetch first"*). She must `git pull` first (Git combines their commits with hers), then push again — and if they both edited the same lines, resolve a conflict (Section 8).
-
-| Straight to `main` is fine for… | Use a branch + pull request for… |
+| Straight to `main` | Branch + pull request |
 |---|---|
-| a typo, a comment, a one-line documentation fix | anything analytical: cleaning, indicators, models |
-| trivial changes when working alone | structural changes, anything a colleague should see |
-| | anything you want reviewed, recorded, or linked to an issue |
+| typos, comments, one-line doc fixes | anything analytical: cleaning, indicators, models |
+| trivial changes when working alone | structural changes; anything a colleague should see or review |
 
-**The one thing to remember:** both ways use the same commands to save work. **The branch only decides which label moves when you commit** — and therefore whether `main` changes *now* (straight to `main`) or *later, after a review* (branch + pull request).
+**Both ways save work with the same commands. The branch only decides *which label moves* — and whether `main` changes now or after a review.**
 
 ---
 
-## 6. Pull requests, step by step
+## 6. Pull requests
 
-A **pull request (PR)** is a page on GitHub that says: *"I propose to merge branch X into `main`; here is what changes and why."* It shows the full diff, lets people comment on individual lines, and has the **Merge** button. It is how work gets from a branch into `main`.
+A **pull request (PR)** is a page on GitHub saying *"I propose to merge branch X into `main`"*, with the full diff, comments, and the **Merge** button. Even when working alone it is worth it: a last look at everything entering `main`, and a permanent record — *"PR #14: merge on hh_id + village_id"* — of what changed and why.
 
-**Why bother when working alone?** Two reasons. It is a last look at *everything* that is about to enter `main`, in one place, before it does. And it leaves a permanent, readable record: months later, *"PR #14 — merge on hh_id + village_id"* tells you what changed, why, and exactly which lines — much more than a list of commits.
+**Opening one** (after pushing the branch), any of:
+- the **link** printed by `git push` (the `remote:` lines);
+- the yellow banner on the repository page, *"… had recent pushes — **Compare & pull request**"* (shown for about an hour);
+- **Pull requests** tab → **New pull request** → choose *base* `main` and *compare* your branch — works any time;
+- *GitHub Desktop:* **Create Pull Request** (opens the same page).
 
-### Opening one (on github.com)
-1. **Push your branch** (Section 5, Step 6).
-2. Open the repository on github.com. A yellow banner appears: *"fix/merge-key had recent pushes — **Compare & pull request**"*. Click it. (No banner? Go to the **Pull requests** tab → **New pull request**, choose *base:* `main` and *compare:* your branch. In GitHub Desktop, **Create Pull Request** opens this same page.)
-3. Check the two boxes at the top: **base: `main` ← compare: `fix/merge-key`** — "merge *compare* into *base*".
-4. **Title:** what the change does, e.g. *Merge baseline and midline on hh_id + village_id*.
-5. **Description:** a few lines — *what* changed, *why*, *how you checked it* (e.g. "re-ran `02_clean.R`; panel now has 4,812 households, no duplicates"). If the work relates to an issue, write `Closes #12` — the issue will close automatically when the PR is merged.
-6. Click **Create pull request**.
+**Filling it in:**
+1. Check the top bar reads **base: `main` ← compare: `your-branch`** ("merge *compare* into *base*").
+2. **Title** — what the change does. GitHub pre-fills it from the commit message if the branch has one commit, or from the **branch name** if it has several (*"Fix/merge key"*) — edit it; the title ends up in `main`'s history.
+3. **Description** — *what* changed, *why*, *how you checked it* ("re-ran `02_clean.R`: 4,812 households, no duplicates"). `Closes #12` closes that issue automatically on merge.
+4. **Create pull request.**
 
-### Reviewing it
-- **Files changed** tab: the complete diff of the branch against `main`, file by file, coloured. Read it top to bottom. Tick **Viewed** on each file as you go.
-- To comment on a line, hover over it and click the **+** that appears. Useful for colleagues ("why `all.x = TRUE` here?") — and for notes to yourself.
-- **Conversation** tab: the description, comments, and — if configured — automatic checks.
-- A reviewer can **Approve** or **Request changes** (*Review changes* button). If changes are needed, the author simply commits and pushes to the same branch; the PR updates by itself.
+**Reviewing:** the **Files changed** tab shows the whole diff; tick **Viewed** per file. To comment on a line, hover over it and click the **+** (choose *Add single comment*; *Start a review* keeps comments hidden until you *Submit review*). The **Commits** tab lists the branch's commits. If changes are needed, the author commits and pushes to the same branch — the PR updates itself.
 
-### Merging it
-1. At the bottom of the *Conversation* tab, click **Merge pull request** → **Confirm merge**. (The arrow next to the button offers *Squash and merge* — all the branch's commits become one — or *Rebase and merge*. The default, *Create a merge commit*, is fine and is what this guide shows.)
-2. Click **Delete branch** on the same page — the branch has done its job.
-3. On your computer: `git switch main`, `git pull`, `git branch -d <branch>` (Section 5, Step 8).
+**Merging:** at the bottom of the *Conversation* tab, **Merge pull request → Confirm merge** (the default, *Create a merge commit*, is fine), then **Delete branch**. Then on your computer: Section 5, Step 8.
 
-If GitHub shows *"This branch has conflicts that must be resolved"* instead of a green merge button, see Section 8.
+If GitHub says *"This branch has conflicts"* instead, see Section 8.
 
 ---
 
 ## 7. Working as a team
 
-### Everyone works the same way
-Each person opens pull requests **for their own branches**. It is not one person's job to open PRs — the question is only who *reviews* and *merges* them, which the team decides (below).
+Everyone works the same way: **each person opens pull requests for their own branches.** The team only decides who *reviews* and *merges* them.
 
-**Diagram — two people, two branches, one `main`:**
+**Diagram:**
 ```
 main ──●──────────────────●──────────●──────►
         \                /          /
@@ -450,265 +379,174 @@ main ──●──────────────────●───
           \                       /
            ●──●──●──●  feat/fies-index        (Juan)
 ```
-Each branch grows separately and joins `main` through its own pull request when it is ready.
 
-### Maria's day with Claude Code
-1. **Morning:** `git switch main`, `git pull` — bring in anything colleagues merged. (The `session-start` skill checks this for you.)
-2. **Start or resume the task's branch:** new task → `git switch -c feat/fies-index` (from the fresh `main`); continuing → `git switch feat/fies-index`.
-3. **Work with Claude.** At each milestone ("the index script runs"), Claude adds the relevant files and proposes a commit message; Claude Code asks before committing. Maria's part: glance at the list of files (no data, nothing unexpected) and approve.
-4. **End of the day:** `git push` — backed up on GitHub, visible to the team, `main` untouched.
-5. **When the task is finished** (today or next week): open a pull request, review, merge (Section 6).
+**Maria's day with Claude Code:**
+1. Morning: `git switch main`, `git pull` (the `session-start` skill checks this).
+2. New task → `git switch -c feat/fies-index`; continuing → `git switch feat/fies-index`.
+3. Work with Claude. At each milestone Claude commits — Claude Code asks first; Maria checks the file list (no data, nothing unexpected).
+4. End of day: `git push` — backed up and visible; `main` untouched.
+5. Task finished (today or next week): pull request → review → merge.
 
-### A colleague's work
-Juan does the same on his branch. His daily commits and pushes **do not affect Maria at all** — they stay on his branch until merged. **Nobody reviews daily work.** Maria looks once, when Juan opens a pull request to say "this is ready". The next morning, her `git pull` on `main` brings his merged work to her computer.
+**Juan's work doesn't affect Maria** until it is merged: his pushes stay on his branch. **Nobody reviews daily work** — Maria looks once, when Juan's PR says "ready". Her next morning pull brings his merged work. (To peek at his unfinished branch: `git fetch`, `git switch feat/fies-index`, and back.)
 
-- **To look at Juan's unfinished branch** (e.g. to help him): `git fetch` (download news from GitHub without changing anything), then `git switch feat/fies-index`. Switch back to your own branch when done.
+**How much review** is a team choice, not a Git rule. A light policy for small teams: scripts that produce numbers for a report get a 10–15-minute review by the lead (description, *Files changed*, plausible outputs); documentation and small fixes are merged by their author. Larger projects add branch protection (nothing reaches `main` without a PR) and required approvals. Even a self-merged PR records who changed what, when and why — which editing files on Drive never did.
 
-### How much review? (a team policy, not a Git rule)
-Git does not require review; the team decides. A light policy suited to small development-economics teams:
-- **Scripts that produce numbers for a report** (cleaning, indicators, estimation): the lead or data manager reviews the PR before merging — 10–15 minutes: read the description, scan *Files changed*, check the outputs look plausible.
-- **Documentation, notes, small fixes:** the author merges their own PR.
+**One branch = one task** — something you'd review and merge as a unit (*clean baseline module B*, *construct the FIES index*). Not one branch per day, person or file. More work on the same task → same branch; a new task → back to `main`, pull, new branch.
 
-Larger or longer projects usually go further: a *branch protection* rule so nothing reaches `main` without a PR, one required approval, and automatic checks. Compared with editing files directly on Google Drive: Drive has no review *and* no history. With Git, even a self-merged PR records who changed what, when and why — and any change can be undone.
-
-### Branches or straight to `main` in a team?
-**Branches, for everything except trivial fixes.** When several people push straight to `main`, their pushes collide (rejected pushes, surprise conflicts) and half-finished work lands in the version everyone pulls.
-
-### What counts as "one task"
-A branch is a piece of work you would review and merge as a unit: *clean baseline module B*, *construct the FIES index*, *draft report chapter 3*, *fix the sampling weights*. **Not** one branch per day, per person or per file. More work on the same task tomorrow → keep the same branch. A new, unrelated task → back to `main`, pull, new branch.
+> **Stacked branches.** Starting a branch from *another unmerged branch* (because task 2 needs task 1's changes) works, but the PRs must then be merged **in order**, and task 2's PR shows task 1's changes until task 1 is merged. Simpler: **merge task 1 first**, pull `main`, then start task 2.
 
 ---
 
-## 8. When two people change the same lines: conflicts
+## 8. Conflicts: two people change the same lines
 
-### When it happens
-Git combines work automatically whenever people changed **different files, or different parts of the same file**. A **conflict** happens only when two people changed **the same lines of the same file** — Git cannot know which version is right, so it asks a human.
+Git combines work automatically when people changed **different files or different parts of a file**. A **conflict** happens only when two people changed **the same lines** — Git asks a human to choose.
 
-### An example
-While Maria worked on a branch that adds suffixes to the merged variables, Juan fixed the same merge line (to keep baseline households missing at midline). Juan's PR was merged first. Maria now brings the new `main` into her branch:
+**Example.** Juan fixed the merge line (keeping baseline households missing at midline) and his PR was merged. Maria, on her branch, changed the same line. She brings the new `main` into her branch:
 
 **Command output:**
 ```
 $ git pull origin main
-Auto-merging 04_scripts/02_clean.R
 CONFLICT (content): Merge conflict in 04_scripts/02_clean.R
 Automatic merge failed; fix conflicts and then commit the result.
-
-$ git status
-On branch feat/panel-weights
-You have unmerged paths.
-  (fix conflicts and run "git commit")
-  (use "git merge --abort" to abort the merge)
-
-Unmerged paths:
-	both modified:   04_scripts/02_clean.R
 ```
-Git has written **both versions** into the file, between markers:
-
-**Command output — the file `02_clean.R` now contains:**
+Git writes **both versions** into the file:
 ```
-# 2. Merge baseline and midline (hh_id repeats across villages)
 <<<<<<< HEAD
 hh <- merge(baseline, midline, by = c("hh_id", "village_id"), suffixes = c("_bl", "_ml"))
 =======
 hh <- merge(baseline, midline, by = c("hh_id", "village_id"), all.x = TRUE)
 >>>>>>> 74003280d9e78f56c9fc8cda36695273effa4f56
 ```
-- Between `<<<<<<< HEAD` and `=======`: **Maria's** version (HEAD = where she is).
-- Between `=======` and `>>>>>>> …`: the **incoming** version (Juan's, now in `main`).
+Top part: **her** version (HEAD); bottom part: the **incoming** one (Juan's, from `main`).
 
-### What to do
-1. **Open the file and decide** what the line should be. Often it is a combination — here, both changes are wanted:
-   `hh <- merge(baseline, midline, by = c("hh_id", "village_id"), all.x = TRUE, suffixes = c("_bl", "_ml"))`
-2. **Delete the three marker lines** (`<<<<<<<`, `=======`, `>>>>>>>`), leaving only the final code.
-3. **Re-run the script** to check it works.
-4. `git add 04_scripts/02_clean.R` (marks the conflict as resolved), then `git commit` (Git suggests a message), then `git push`.
+**To resolve:**
+1. Edit the file to what it should be — often a combination: `…, all.x = TRUE, suffixes = c("_bl", "_ml"))`.
+2. Delete the three marker lines (`<<<<<<<`, `=======`, `>>>>>>>`).
+3. Re-run the script.
+4. `git add 04_scripts/02_clean.R`, `git commit`, `git push`.
 
-If you get lost: `git merge --abort` puts everything back to how it was before the pull. When in doubt, ask the colleague whose change it was — a conflict is a conversation, not an error. RStudio, VS Code and GitHub Desktop all highlight the conflicting blocks and offer buttons to pick one side.
+Lost? `git merge --abort` returns everything to before the pull. RStudio, VS Code and GitHub Desktop highlight conflicts and offer buttons to pick a side. A conflict shown on a PR page is fixed the same way, on your computer.
 
-A conflict can also show up on the pull-request page (*"This branch has conflicts that must be resolved"*). The fix is the same: on your computer, on your branch, `git pull origin main`, resolve as above, commit, push — the PR updates itself.
-
-### How to avoid most conflicts
-- **Pull `main` every morning**, and branch from a fresh `main`.
-- **Keep branches short**: merge within days. The longer a branch lives, the more `main` moves under it.
-- **Divide work by file**: one person per script. The numbered-scripts structure (`01_clean_baseline.R`, `02_clean_midline.R`, …) already encourages this.
-- **Say when you are touching a shared file** (the master script, the paths file, the README): a one-line message to the team avoids most surprises.
-- **Merge small PRs often** rather than one enormous PR at the end.
+**Avoiding most conflicts:** pull `main` every morning and branch from it; keep branches short (days, not weeks); one person per script; announce when you touch shared files (master script, paths file, README); merge small PRs often.
 
 ---
 
-## 9. Code on GitHub, data on Google Drive — what that means for branches
+## 9. Code on GitHub, data on Google Drive
 
-Git keeps **one version of the code per branch**: `main` has the old merge line, `fix/merge-key` the new one, and switching branch swaps the files. **Google Drive has only one copy of each data file** — it knows nothing about branches.
+Git keeps **one version of the code per branch**; Google Drive keeps **one copy of each data file**, and knows nothing about branches.
 
-### The problem
-When Maria runs `02_clean.R` **from her unmerged branch**, it writes `panel.rds` to the shared `03_clean_data` folder on Drive — **overwriting the file everyone uses** with output from code that is not in `main` yet, and may never be. Juan, running the analysis from `main`, now silently reads a panel built with a merge rule his code doesn't contain. Nobody notices until the numbers stop matching.
+**The problem** — and it exists with or without branches: when Maria runs her *modified, unmerged* `02_clean.R`, it overwrites `panel.rds` in the shared `03_clean_data`. Juan, running the analysis from `main`, silently reads a panel built with code he doesn't have.
 
-### Good practices
-1. **Raw data is read-only for everyone** (already a rule in this template). Branches can only ever break *derived* files, which can be regenerated.
-2. **Branch work writes somewhere else.** While testing a branch, write outputs to a personal or per-branch folder, e.g. `02_temp_data/sandbox/<your-name>/`, not to `03_clean_data`. One simple way is to have the paths file choose the folder from the current branch — a person (not the AI) can add to `00_setup_paths.R`:
+**The rule:** *work in progress writes to `02_temp_data`; only the finished code in `main` writes to `03_clean_data`.* In practice:
+1. **Raw data is read-only** for everyone — so only derived files can ever be affected, and those can be regenerated.
+2. **Branch runs write elsewhere** — a personal or per-branch folder under `02_temp_data`. This can be automatic: a person (not the AI) can add to `00_setup_paths.R`
    ```r
    branch <- system("git branch --show-current", intern = TRUE)
    if (branch != "main") DATA_CLEAN <- file.path(DATA_TEMP, "branches", branch)
    ```
-   so any script run from a branch writes to its own folder automatically.
-3. **Only `main` produces the official data.** After a PR is merged, re-run the relevant scripts (or the master script) from `main` to regenerate the shared files in `03_clean_data`.
-4. **Record which code produced a file.** Save the commit ID with important outputs (e.g. `git rev-parse --short HEAD` written into the log or the file's metadata), so you can always tell which version of the code built it.
-5. **Tell the team when shared data is regenerated** — and log significant data changes in `decision_log.md`.
+3. **After a merge, regenerate** the shared files by running the scripts (or the master script) from `main`.
+4. **Record which code produced a file** — e.g. write `git rev-parse --short HEAD` into the log.
+5. **Tell the team** when shared data is regenerated; log significant changes in `decision_log.md`.
+
+Data-engineering teams solve the same problem with separate *environments*: each developer's work writes to a private area, and only the official pipeline, run from `main`, writes the shared data.
 
 ---
 
-## 10. Stacked branches (a branch on top of a branch)
-
-Normally every branch starts from `main`. Sometimes, though, a second task **depends on work that is not merged yet**: task 2 needs the changes from task 1, but task 1's pull request hasn't been merged. Starting task 2 from `main` would mean working without those changes, so people start it **from task 1's branch** instead — a *stacked* branch.
-
-**Diagram:**
-```
-main ──A
-        \
-         B  task-1            ← not merged yet
-          \
-           C  task-2          ← started from task-1, so it contains B as well
-```
-
-**What follows from this:**
-- **Merge in order.** Task 1's PR goes first. Until then, task 2's PR would show task 1's changes too, which is confusing to review.
-- **After task 1 is merged,** task 2's PR (base `main`) shows only its own changes, and merges normally.
-- If task 1 changes during review, task 2 may need to pull those changes in (`git pull origin task-1` while on task-2).
-
-**Should you avoid it?** When you can, yes — it is simpler to **merge task 1 first**, then pull `main` and start task 2 from there. Stacking is a reasonable choice when you can't wait (task 1 is in review and you need to continue), but keep it to two levels and merge promptly.
-
----
-
-## 11. GitHub features beyond commit and push
+## 10. More GitHub features
 
 | Feature | What it is | Why it helps |
 |---|---|---|
-| **Issue** | A numbered ticket (`#12`) for a bug, task or question; can be labelled and assigned to someone. | A shared to-do list attached to the code. `Closes #12` in a PR description closes the issue automatically when the PR is merged, linking the problem to the exact change that fixed it. |
-| **Pull request** | A page proposing to merge a branch, with the full diff and comments (Section 6). | A final review before `main` changes, and a readable record of what changed and why. |
-| **Tag / Release** | A permanent name for one commit (`v1.1`, `midline-report-sent-2026-10-02`), optionally with notes. | You can always go back to exactly the code that produced what the client received. |
-| **Branch protection** | A repository setting that forces changes to `main` to go through a PR (optionally with an approval). | Nobody — human or AI — pushes to `main` by accident. |
-| **PR / issue templates** | Pre-filled text in a `.github/` folder that appears in every new PR or issue. | A checklist on every PR: "☐ no data files ☐ runs from `00_master` ☐ outputs regenerated from `main`". |
-| **Actions** | Automatic checks that GitHub runs on every PR. | E.g. repeat the large-file check on GitHub's side, even for people who never activated the local hook. |
+| **Issue** | A numbered ticket for a bug, task or question; can be labelled and assigned. | A to-do list attached to the code. `Closes #12` in a PR closes it on merge, linking the problem to its fix. |
+| **Tag / Release** | A permanent name for one commit (`v1.1`, `midline-report-sent-2026-10-02`). | You can always return to exactly what the client received. |
+| **Branch protection** | A setting that forces changes to `main` through a PR. | Nobody — human or AI — pushes to `main` by accident. |
+| **PR / issue templates** | Pre-filled text from a `.github/` folder. | A checklist on every PR: "☐ no data ☐ runs from `00_master`". |
+| **Actions** | Automatic checks on every PR. | E.g. repeat the large-file check on GitHub's side. |
 
-**Issues and `PENDING.md`:** they overlap, so give them different jobs. Use **issues** for anything other people should see, discuss or be assigned. Keep **`PENDING.md`** as the short working queue Claude reads each session, referring to issue numbers (*"finish #12"*) rather than repeating them.
-
----
-
-## 12. Hooks: Git hooks vs Claude Code hooks
-
-A **hook** is a small script that a program runs automatically at a certain moment. Two different programs in this template have them, which is easy to mix up:
-
-| | Git hook — `.githooks/pre-commit` | Claude Code hook — `.claude/hooks/check_large_files.sh` |
-|---|---|---|
-| Run by | Git | Claude Code |
-| When | Just before *any* commit — from the terminal, GitHub Desktop, RStudio or Claude | Just before *Claude* runs a git command |
-| Answers with | An exit code: `0` = go ahead, anything else = stop the commit | A short JSON message: `ask`, `deny` or `allow` |
-| Switched on by | `git config core.hooksPath .githooks` — once per person, per clone | Its registration in `.claude/settings.json` — automatic |
-| Can it ask you a question? | Only in a terminal window | Always — Claude Code shows the prompt |
-
-In this template they work together to protect the rule *"data lives on Drive"*: both list any data file over 5 MB (or any file over 25 MB) in a commit and let you decide whether it really belongs in the repository. More in the *Safety net* section of the scaffold `README.md`.
+- **Issues and pull requests share one numbering:** if PRs #1 and #2 exist, the next issue is #3.
+- **Issues vs `PENDING.md`:** issues for anything others should see, discuss or be assigned; `PENDING.md` as the short queue Claude reads each session, pointing to issue numbers (*"finish #12"*).
+- **Hooks** (scripts run automatically before a commit) protect this template's rule that data stays on Drive: they list large data files and ask before committing them. See the *Safety net* section of the scaffold `README.md`.
 
 ---
 
-## 13. Cheat sheet
+## 11. Cheat sheet
 
-### Looking (safe — these never change anything)
+**Looking** (safe — never changes anything)
 | Command | Use it when… |
 |---|---|
-| `git status` | Always, first. Shows the branch you're on, which files changed, what's in the basket, and whether you're ahead of / behind GitHub. |
-| `git diff` | You want to see the exact lines you changed that are **not yet added**. |
-| `git diff --staged` | Right before committing: shows exactly what the commit will contain. |
-| `git diff --stat` / `git diff --staged --stat` | You want the summary (files + number of lines) rather than every line. |
-| `git log --oneline --graph --all --decorate` | You want the map: which branches exist, where you are (`HEAD`), and where GitHub is (`origin/...`). |
-| `git show <commit-id>` | You want to see what one past commit changed (IDs come from `git log`). |
-| `git diff main..my-branch --stat` | You want to know everything your branch changes compared with `main` (what its PR will show). |
-| `git branch --show-current` | You just want to know which branch you're on. |
+| `git status` | Always first: your branch, changed files, the basket, ahead/behind. |
+| `git diff` / `git diff --staged` | You want the exact lines changed — not added yet / about to be committed. |
+| `… --stat` | You want a summary rather than every line. |
+| `git log --oneline --graph --all --decorate` | You want the map: branches, where you are, where GitHub is. |
+| `git show <id>` | You want to see what one past commit changed. |
+| `git diff main..my-branch --stat` | You want what your branch changes compared with `main` (what its PR will show). |
 
-### Saving
+**Saving**
 | Command | What it does |
 |---|---|
-| `git add <file>` | Put one file's changes in the basket. |
-| `git add -A` | Put **all** changes in the basket, including new and deleted files. Check with `git diff --staged --stat` afterwards. |
-| `git restore --staged <file>` | Take a file back out of the basket. **Your edits are kept** in the folder. |
-| `git commit -m "message"` | Save the basket as a commit on the current branch. Message style: `fix: …`, `feat: …`, `docs: …`. |
+| `git add <file>` / `git add -A` | One file / everything (new and deleted files too) into the basket. |
+| `git restore --staged <file>` | Take a file out of the basket — your edits are kept. |
+| `git commit -m "message"` | Save the basket as a commit (`fix: …`, `feat: …`, `docs: …`). |
 
-### Branches
+**Branches**
 | Command | What it does |
 |---|---|
-| `git switch -c <name>` | Create a new branch on the commit you're on and switch to it. Do it from a fresh `main`. |
-| `git switch <name>` | Switch to an existing branch. The files in your folder change to that branch's version. |
-| `git branch` | List your local branches (`*` marks the current one). |
-| `git branch -d <name>` | Delete a branch label after its work has been merged. Refuses if the work isn't merged — a safety check. |
+| `git switch -c <name>` | Create a branch here and switch to it. |
+| `git switch <name>` | Switch branch — your folder changes to that branch's version. |
+| `git branch` | List your branches (`*` = current). |
+| `git branch -d <name>` | Delete a merged branch's label (refuses if not merged). |
 
-### Syncing with GitHub
+**Syncing with GitHub**
 | Command | What it does |
 |---|---|
-| `git pull` | Download new commits for the current branch **and update your files**. Do it on `main` every morning. |
-| `git fetch` | Only *check* GitHub for news (updates the `origin/...` labels); your files don't change. |
-| `git push -u origin <branch>` | First upload of a new branch; `-u` remembers the pairing. |
-| `git push` | Later uploads of the same branch. |
-| `git pull origin main` | While on your branch: bring the latest `main` into it (to get colleagues' work or resolve a conflict). |
+| `git pull` | Get new commits for this branch **and update your files**. |
+| `git fetch` / `git fetch --prune` | Only check GitHub (updates the photo) / and forget branches deleted there. |
+| `git push -u origin <branch>` / `git push` | First upload of a branch / later uploads. |
+| `git pull origin main` | While on your branch: bring the latest `main` into it. |
 
-### Undoing
+**Undoing**
 | Command | What it does |
 |---|---|
-| `git restore <file>` | **Discard** your uncommitted edits to a file — it goes back to the last commit. Cannot be undone. |
-| `git merge --abort` | Cancel a merge that produced conflicts; everything goes back to before the pull. |
-| `git revert <commit-id>` | Undo a commit that is already pushed, safely: adds a new commit that reverses it. History stays intact. |
+| `git restore <file>` | **Discard** uncommitted edits to a file. Cannot be undone. |
+| `git merge --abort` | Cancel a merge that produced conflicts. |
+| `git revert <id>` | Safely undo a pushed commit (adds a reversing commit). |
 
-*Older guides use `git checkout` for switching branches and discarding edits; `git switch` and `git restore` are the newer, clearer names for the same things.*
+*Older guides use `git checkout` for switching branches and discarding edits; `git switch` / `git restore` are the newer names.*
 
 ---
 
-## 14. Frequently asked questions
+## 12. FAQ
 
-**Why is `git diff --staged` empty before I `git add` anything?**
-It compares the basket with the last commit. An empty basket means "no difference yet" — it has nothing to do with whether you have committed. After `git add` it shows what you added; right after `git commit` it is empty again, because the basket was emptied into the commit.
+**Why is `git diff --staged` empty before I add anything?** It compares the basket with the last commit; an empty basket means no difference. Right after a commit it is empty again.
 
-**Do I have to `git add` before every commit?**
-Yes — `git commit` saves only what is in the basket. Shortcuts: `git add -A` stages everything; `git commit -am "message"` stages and commits all *modified* files in one go (but skips brand-new files).
+**Do I need to add files one by one when working with Claude?** No — Claude adds and commits at milestones and Claude Code asks you first. Check the file list and approve. Without Claude, `git add -A` stages everything; check with `git diff --staged --stat`.
 
-**Do I have to add files one by one when working with Claude?**
-No. Claude runs `git add` and `git commit` at milestones, and Claude Code asks you before each commit. Your part is to check the file list it shows (no data, nothing unexpected) and approve. You can also just say "commit this" at a good point.
+**When should I commit?** Whenever a piece works ("the merge runs", "the table renders") — several times per task, not once a week.
 
-**When should I add and commit?**
-At logical checkpoints — whenever a piece works ("the merge runs", "the table renders"), usually several times per task. Add and commit together, one right after the other. One giant commit at the end of a week makes the history useless and mistakes harder to undo.
+**Does `git pull` change my files?** Yes — it updates repository files in your folder to the latest version (never your data on Drive). Uncommitted edits are kept; if one would be overwritten, Git stops and tells you.
 
-**Should I create the branch before I start working, or just before committing?**
-Before you start — it's the first step of a task and prevents accidental commits to `main`. If you forget, create it before your first commit; your uncommitted edits come along.
+**I stopped tracking some files (`git rm --cached`) — are they safe?** On *your* computer, yes. But the commit records them as **deleted**, so anyone who pulls it — including you, on another machine or after switching away and back — loses their local copy. They remain in history (`git restore --source=<older-commit> -- <path>` brings them back).
 
-**If I'm far behind, does `git pull` change my files?**
-Yes: it updates the files in your folder to the latest version of the branch (only files in the repository — never your data on Drive). Your uncommitted edits are kept; if an incoming change would overwrite one, Git stops and tells you which file.
+**Do I need to review colleagues' branches every day?** No — once, when they open a pull request.
 
-**Do I need to review my colleagues' branches every day?**
-No. Look at their work once, when they open a pull request. How thorough the review is, is a team decision (Section 7).
+**Does only the lead open pull requests?** No — everyone, for their own branches. Conflicts are avoided by short branches, one person per script and pulling `main` often (Section 8).
 
-**Does only the lead open pull requests?**
-No — everyone opens PRs for their own branches. The team decides who reviews and merges them. Conflicts are avoided by short branches, dividing work by file and pulling `main` often — not by limiting who opens PRs (Section 8).
-
-**Can two people work on the same branch?**
-Yes, but then they are effectively sharing a mini-`main`: both must `git pull` before starting and push often. Usually simpler to give each person their own branch.
+**Can two people share a branch?** Yes, but both must pull before starting and push often — like a mini-`main`. Usually simpler to have one branch each.
 
 ---
 
-## 15. Glossary
+## 13. Glossary
 
-- **Repository (repo):** the project folder plus its complete history (kept in the hidden `.git` folder).
-- **Commit:** a saved snapshot of the project, with an ID, author, date and message.
+- **Repository (repo):** the project folder plus its full history (in the hidden `.git` folder).
+- **Commit:** a saved snapshot, with ID, author, date and message.
 - **Staging area ("basket"):** the changes chosen for the next commit.
-- **Branch:** a movable label pointing at a commit; it moves forward when you commit on it.
-- **`main`:** the main branch — the version everyone trusts and pulls from.
-- **HEAD:** "you are here" — the branch you are currently on.
-- **Remote / `origin`:** the GitHub copy of the repository; `origin` is its standard nickname.
-- **`origin/main`:** where `main` is on GitHub, as of your last fetch or pull.
-- **Push / pull / fetch:** upload your commits / download commits and update your files / only check for new commits.
-- **Merge:** combine one branch's commits into another.
-- **Merge commit:** the commit that joins a branch back into `main`.
-- **Fast-forward:** a pull or merge where your label simply moves forward, because there is nothing to combine.
+- **Branch:** a movable label on a commit; moves forward when you commit on it.
+- **`main`:** the trusted branch everyone pulls from.
+- **HEAD:** "you are here" — your current branch.
+- **`origin`:** the GitHub copy; **`origin/main`:** your last known photo of GitHub's `main`.
+- **Push / pull / fetch:** upload / download and update your files / only check.
+- **Merge / merge commit:** combine a branch into another / the commit that joins them.
+- **Fast-forward:** your label simply moves forward; nothing to combine.
 - **Pull request (PR):** a GitHub page proposing, reviewing and performing a merge.
-- **Conflict:** two changes to the same lines that Git cannot combine by itself.
+- **Conflict:** two changes to the same lines that Git can't combine by itself.
 - **Issue:** a numbered ticket for a task, bug or question.
-- **Tag / release:** a permanent name (and notes) for one specific commit.
-- **Stacked branch:** a branch started from another unmerged branch rather than from `main`.
-- **Hook:** a script run automatically at a certain moment (Section 12).
+- **Tag / release:** a permanent name for one commit.
