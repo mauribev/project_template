@@ -38,7 +38,7 @@ Turning the blank scaffold into a live project:
 - [ ] **Install the project README.** `cp 08_ai_management/03_system_templates/README_template.md README.md`, then fill in every `[bracketed placeholder]`: project name, lead, status, objectives, research questions, methodology, GDrive link, data sources, language/packages, random seed, and the pipeline list.
 - [ ] **Create your paths file** — *do this before running any script.* Build `04_scripts/00_setup_paths.[R/py/do]` from `01_references/00_guidelines/setup_paths_template.md`, filling in the absolute path to your Google Drive (`GDRIVE_PATH`) and to this repo (`GITHUB_PATH`). Scripts read the data from Google Drive (not from the repo), so without this file nothing can find its inputs. It's the one file the agent may never edit — see Section 5 for the full rationale.
 - [ ] **Turn on the commit safety check** — every person, once per clone: `git config core.hooksPath .githooks`. Git never enables hooks on a fresh clone by itself. Skipping it breaks nothing; you just lose the large-file check (see *Safety net* in Section 5).
-- [ ] **Skim `CLAUDE.md`.** It is generic and ready to use. Delete the "Template note" blockquote at the top once you've read it. Only change a rule if this project genuinely needs a different convention — and if you do, record it in `decision_log.md`.
+- [ ] **Skim `CLAUDE.md` and fill in its *Commands* section** (how to run the master script and a single step in this project's language). Everything else is generic and ready to use. The template note at the top is an HTML comment — Claude never sees it — so delete it or keep it. Only change a rule if this project genuinely needs a different convention — and if you do, record it in `decision_log.md`.
 - [ ] **Install the toolchain you will actually need.** Check these before the first deliverable is due, not the week it ships. The `causal-report` pipeline needs `quarto`, `pandoc`, `python3` with `lxml` / `pyyaml` / `docxcompose` (`pip3 install docxcompose`). Verifying a rendered document *by eye* additionally needs a `.docx` renderer (LibreOffice or Word) and the profile's font installed locally — without them every check is structural, and a layout error reaches the client unseen. On the project this scaffold was last updated from, all three gaps surfaced only at delivery time.
 - [ ] **Trim the workstreams.** Edit `08_ai_management/01_progress_logs/WORKSTREAMS.md` so its sections match the topics this project actually has (rename / add / delete).
 - [ ] **Check `.gitignore`.** Already tuned: it ignores `03_data/` (a backstop — the scaffold ships no local data folder, since data lives on GDrive), R/Python environments, Office lock files and report build trees, and whitelists the shareable `.claude/skills` etc. Adjust only if the project needs it.
@@ -87,7 +87,9 @@ The Board exists precisely because the other three are chronological or flat: th
 An annotated inventory of the key files. Each has a matching blueprint in `08_ai_management/03_system_templates/` where relevant.
 
 ### Operating rules
-- **`CLAUDE.md`** — the agent's full operating manual: data/pathing guardrails, directory discipline, coding standards, git discipline, the tracking system, the skills lifecycle, and AI working style. The single source of truth for how Claude Code behaves in the project. *This file is already generic and ready to use — it is its own template, so there is no separate "CLAUDE template" to copy.*
+- **`CLAUDE.md`** — the agent's operating rules that apply in *every* session: data and pathing guardrails, where outputs go, coding standards, git discipline, working style, and a map of the tracking system. Deliberately short (~75 lines, following Anthropic's guidance that longer files reduce adherence); it imports the project `README.md` for context. *It is its own template — there is no separate "CLAUDE template" to copy.*
+- **`.claude/rules/`** — rules that load only when relevant: `r_style.md`, `python_style.md`, `stata_style.md` (when Claude reads files of that language) and `skills_maintenance.md` (when Claude works in `.claude/skills/`).
+- **Enforced guardrails** — `.claude/settings.json` and the git hook (see *Safety net* below). What must never happen is blocked by tools, not just written down.
 
 ### The pathing system (`00_setup_paths`)
 **What it is for:** code lives in the repo, but the data lives on Google Drive (Section 3), and every person mounts that Drive at a *different* absolute path (e.g. yours starts `/Users/mauribev/Library/CloudStorage/GoogleDrive-…`, a colleague's looks nothing like it). If scripts hardcoded a path, they'd break the moment anyone else ran them. `00_setup_paths` solves this: it is a small config file that figures out the correct paths **for whoever is running the code right now** and stores them in named variables.
@@ -116,12 +118,20 @@ The most important guardrails are *enforced by tools*, not just written down:
 The blueprints the agent copies from when creating new files: `README_template.md` (the project README, installed in Section 2), `log_template.md`, `decision_template.md`, `learning_template.md`, `workstream_template.md`, and **`qmd_template.qmd`** — the three-part diagnostic-report section pattern (fixed intro prose → dynamic R chunk → optional callout) used for reproducible Quarto reports.
 
 ### AI skills (`.claude/skills/`)
-Reusable `/slash-command` pipelines:
+Reusable `/slash-command` pipelines. Claude also picks them up automatically when a request matches a skill's description.
+
+*Project memory* — the procedures that keep the four tracking layers (Section 4) in sync:
+- **`session-start`** — "pick up where we left off": reads the latest log, the board, open items and recent decisions, checks git, and summarises.
+- **`log-session`** — records milestones, dead ends, next steps and decisions as they happen, updating the session log, `PENDING.md`, `decision_log.md` and `WORKSTREAMS.md` in one pass.
+- **`save-lesson`** — writes a tagged, referenced entry into `learnings.md`.
+- **`save-transcript`** — exports the conversation to `04_knowledge_base/transcripts/`.
+
+*Documents and reports:*
 - **`doc-to-md`** — convert PDF / Word documents to clean Markdown.
 - **`doc-review`** — produce a thorough, stand-alone review of a Markdown document.
 - **`causal-report`** — build a Causal Design client report as a formatted `.docx`. Front matter is authored in Word with `{{TOKEN}}` placeholders, the body in Quarto, and the two are stitched into one flat document. Every typographic and colour decision lives in `profiles/<name>/profile.yaml`, so the writer chooses a profile name, never a font. Supports a round trip: a reviewer's edited `.docx` can be merged back into the `.qmd` section by section. Ships a runnable style reference (`examples/01_elements.qmd`) that doubles as the pipeline's smoke test.
 
-Skills also work globally from `~/.claude/skills/`. After editing a project skill, sync it with `cp -R .claude/skills/<name> ~/.claude/skills/`. The full versioning/deprecation lifecycle is in `CLAUDE.md` §7.
+Skills also work globally from `~/.claude/skills/`. After editing a project skill, sync it with `cp -R .claude/skills/<name> ~/.claude/skills/`. The full versioning/deprecation lifecycle is in `.claude/rules/skills_maintenance.md` (it loads automatically whenever Claude works inside `.claude/skills/`).
 
 ### Guidelines (`01_references/00_guidelines/`)
 - **`git_team_workflow.md`** — onboarding for teammates new to Git (the hybrid Git + Google Drive workflow, and the rules that keep data out of the repo).
@@ -137,7 +147,7 @@ Skills also work globally from `~/.claude/skills/`. After editing a project skil
 ├── README.md            # Project context (from README_template.md on setup)
 ├── .gitignore           # Keeps data + local cruft out of git
 ├── .githooks/           # pre-commit: asks before large data files are committed
-├── .claude/             # skills/ · hooks/ · settings.json (Claude Code permissions)
+├── .claude/             # skills/ · rules/ · hooks/ · settings.json (Claude Code permissions)
 ├── 01_references/       # 00_guidelines · 01_project_documentation · 02_literature · 03_past_examples
 ├── 02_survey_tools/     # 01_quant_tools (XLSForms) · 02_qual_tools (KII/FGD guides)
 ├── 04_scripts/          # 00_setup_paths · numbered pipeline · 00_resources · 01_functions · 99_replication
@@ -156,7 +166,13 @@ The canonical structure with per-folder rationale is documented in full in `READ
 
 This template is a living asset — the canonical home for "how Causal Design runs a project." When a project surfaces a genuinely reusable convention, template, or skill, **port it back here** (stripping anything project-specific) and bump the version note below.
 
-**Scaffold version:** v1.1 — back-ported from Matthew63 P2R, September 2026.
+**Scaffold version:** v1.2 — `CLAUDE.md` restructure, September 2026.
+- Rewrites **`CLAUDE.md`** following Anthropic's official guidance (code.claude.com/docs: *memory*, *best practices*): from 152 lines / ~2,900 words to ~75 lines / ~1,250 words, holding only what applies in every session. No rule was dropped — each moved to where it loads when needed.
+- Moves the triggered workflows (session start, session logging with the PENDING / WORKSTREAMS / decision-log sync, lessons, transcripts) into four skills: `session-start`, `log-session`, `save-lesson`, `save-transcript`.
+- Moves language-specific conventions and the skills lifecycle into path-scoped rules under `.claude/rules/`.
+- Resolves contradictions (plan-and-wait vs. proceed-without-asking; "run code in the terminal" vs. "never run code in the terminal"; asking for the language every session), trims the ALL-CAPS emphasis to a single IMPORTANT, adds a *Commands* section, makes the `README.md` a real import (the old `@` references sat inside backticks and never loaded), and turns the template note into an HTML comment Claude never sees.
+
+**v1.1** — back-ported from Matthew63 P2R, September 2026.
 - Adds the **`causal-report`** skill (v1.2.1) and the `06_workspace/04_report_drafts/` folder its workflow assumes, plus the `.gitignore` rules for report build trees.
 - **Drops the local `03_data/` stubs.** They were gitignored and therefore never reached a project created from this template — the scaffold now says plainly that data lives on Google Drive. `03_data/` stays in `.gitignore` as a backstop, and `CLAUDE.md` §2 was reworded to stop pointing at folders the scaffold does not ship.
 - Adds a **toolchain-dependency step** to the setup checklist: the report pipeline needs Quarto, pandoc and `docxcompose`, and verifying a document by eye needs a renderer and the house font. On P2R all three sat unnoticed until three deliverable checks were blocked on them.

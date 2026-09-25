@@ -1,6 +1,6 @@
 # Skills Backlog
 
-Candidate repetitive, tedious tasks that could be automated into a Claude Code skill (a reusable `/slash-command` pipeline). When we hit the same multi-step chore 2–3 times, capture it here; promote the strongest candidates into `.claude/skills/<name>/` per the versioning discipline in `CLAUDE.md` §7.
+Candidate repetitive, tedious tasks that could be automated into a Claude Code skill (a reusable `/slash-command` pipeline). When we hit the same multi-step chore 2–3 times, capture it here; promote the strongest candidates into `.claude/skills/<name>/` per the versioning discipline in `.claude/rules/skills_maintenance.md`.
 
 ## How to add a candidate
 
@@ -20,3 +20,4 @@ Each entry: **Name (proposed).** What the task is → why it's painful by hand �
 - **`doc-to-md`** — convert PDF/Word documents to clean Markdown.
 - **`doc-review`** — thorough, stand-alone review of converted Markdown documents.
 - **`causal-report`** — build a Causal Design client report as a formatted Word document. Front matter authored in Word with `{{TOKEN}}` placeholders, body authored in Quarto, the two stitched into one flat `.docx`. All typography, colour and table formatting live in `profiles/<name>/profile.yaml`, so no design decision is left to whoever writes the report. **Known gap:** a standardised *figure* function set — nothing yet enforces a consistent palette, axis treatment or source footnote across a report's charts. See the skill's `CHANGELOG.md`.
+- **`session-start`**, **`log-session`**, **`save-lesson`**, **`save-transcript`** — the project-memory procedures, moved out of `CLAUDE.md` in scaffold v1.2 so they load only when needed.

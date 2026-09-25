@@ -183,7 +183,7 @@ Build artifacts land in `build/` next to the spec and are disposable. The baseli
 
 ## Learnings
 
-*Candidates for promotion into the pipeline above. Per `CLAUDE.md` §7, promote when one recurs two or three times.*
+*Candidates for promotion into the pipeline above. Per `.claude/rules/skills_maintenance.md`, promote when one recurs two or three times.*
 
 - `2026-09-22` Word silently splits a typed token across runs — `{{subtitle}}` was stored as `{{` + `subtitle` + `}}`. Substitution joins paragraph text before matching and writes back surgically, so fields such as `PAGE` survive. Any future token-based template needs the same treatment.
 - `2026-09-22` A hand-authored Word file carries formatting the profile never asked for (small caps on H1 and H3). Style application therefore clears emphasis before setting it, or the profile is not really authoritative.

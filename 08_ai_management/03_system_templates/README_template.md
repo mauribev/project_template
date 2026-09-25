@@ -67,7 +67,7 @@ The core analytical pipeline is executed sequentially from the root of the `04_s
 ├── README.md                     # Human-readable project context and methodology
 ├── .gitignore                    # Prevents Git from tracking local Google Drive data
 ├── .githooks/pre-commit          # Asks before large data files are committed (activate: git config core.hooksPath .githooks)
-├── .claude/                      # skills/ · hooks/ · settings.json (Claude Code permissions and guardrails)
+├── .claude/                      # skills/ · rules/ · hooks/ · settings.json (Claude Code permissions and guardrails)
 ├── 01_references/
 │   ├── 00_guidelines/            # Company guidelines (git workflow, path setup)
 │   ├── 01_project_documentation/ # SoWs, IRB approvals, Project documentation, MoUs, Data Sharing Agreements
@@ -131,4 +131,4 @@ Project progress is tracked through four complementary files. They answer differ
 * **Learnings (`04_knowledge_base/learnings.md`):** reusable analytical / coding lessons, tagged with a standard taxonomy.
 * **Deep methodology references (`04_knowledge_base/methodology_*.md`):** full course-note-style write-ups for non-trivial methods (math, derivations, procedure). See `04_knowledge_base/_examples/` for the expected depth.
 * **Skills backlog (`04_knowledge_base/skills_backlog.md`):** candidate repetitive tasks to automate into Claude Code skills.
-* **AI skills (`.claude/skills/`):** reusable slash-command pipelines (e.g. `/doc-to-md`, `/doc-review`). See `CLAUDE.md` §7 for the versioning discipline.
+* **AI skills (`.claude/skills/`):** reusable slash-command pipelines (e.g. `/doc-to-md`, `/doc-review`). Project-memory skills: `/session-start`, `/log-session`, `/save-lesson`, `/save-transcript`. Versioning discipline: `.claude/rules/skills_maintenance.md`.
