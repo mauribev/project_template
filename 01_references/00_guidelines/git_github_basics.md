@@ -198,6 +198,44 @@ $ git log --oneline --graph --all --decorate
 
 `--all` shows every branch on your computer plus the known GitHub positions (`origin/...`). Branches are not "open" or "closed" — they are labels that exist until someone deletes them.
 
+### GitHub and your computer: four things to keep apart
+Most confusion about Git comes from mixing up *where* a version lives. At any moment there are four separate things — one in the cloud and three on your computer:
+
+| # | Where | What it is | When it changes |
+|---|---|---|---|
+| 1 | **GitHub** | The real, shared repository in the cloud. | When someone pushes, or merges a pull request on the website. |
+| 2 | **`origin/main`** (your computer) | Your computer's **last known photo** of where `main` is on GitHub. | Only when your computer talks to GitHub: `git fetch`, `git pull`, `git push`. |
+| 3 | **`main`** (your computer) | *Your own* `main` branch — a label on a commit in your local history (`.git`). | Only when *you* commit on it or pull into it. |
+| 4 | **Your folder** | The files you see and edit. | Shows **whichever branch you are on** — and changes when you switch branch or pull. |
+
+**GitHub never changes anything on your computer by itself.** Your computer only learns what happened on GitHub when you ask it to.
+
+**Worked through for Maria's pull request** (Section 5, Steps 7–8). She is on her branch `fix/merge-key` when the pull request is merged on the website:
+
+| Moment | 1. `main` on GitHub | 2. `origin/main` (photo) | 3. Maria's `main` | 4. Folder shows |
+|---|---|---|---|---|
+| Before the merge | `730e8a7` | `730e8a7` | `730e8a7` | her branch `fix/merge-key` |
+| **Merge** clicked on GitHub | **`ba1315e`** ← moved | `730e8a7` (old photo) | `730e8a7` | `fix/merge-key` |
+| She runs `git fetch` | `ba1315e` | **`ba1315e`** ← new photo | `730e8a7` | `fix/merge-key` |
+| She runs `git switch main` | `ba1315e` | `ba1315e` | `730e8a7` | **`main`** — the *old* version |
+| She runs `git pull` | `ba1315e` | `ba1315e` | **`ba1315e`** ← caught up | `main` — the **new** version |
+
+After the merge only column 1 changed; each command then brings one more column up to date. Once all four agree, everything is in sync.
+
+### `git fetch` vs `git pull`
+- **`git fetch`** — *"GitHub, what's new?"* Downloads new commits into your local history and **updates the photo** (`origin/...` labels). It does **not** move your own branches and does **not** touch your files. Always safe; use it to *look* before doing anything.
+- **`git pull`** — a fetch **plus** it moves *your current branch* forward to match GitHub **plus** it updates the files in your folder. Use it on `main` to bring your copy up to date.
+
+**Command output — what a fetch reports** after a pull request was merged on GitHub:
+```
+$ git fetch
+From https://github.com/your-team/midline-project
+   730e8a7..ba1315e  main       -> origin/main
+```
+Read it as: *"`main` on GitHub moved from `730e8a7` to `ba1315e`; I updated your photo `origin/main` accordingly."* Your own `main` and your files are unchanged until you pull.
+
+**"Committed" vs "in my folder."** Everything in the tables above except column 4 is *committed history*: labels on commits stored in `.git`. Your folder is a separate matter — it simply displays one branch. Uncommitted edits exist only in the folder (Section 2) and never appear on GitHub until they are committed and pushed.
+
 ---
 
 ## 5. Step by step: saving work on a branch (the recommended way)
@@ -328,7 +366,7 @@ Fast-forward
 $ git branch -d fix/merge-key
 Deleted branch fix/merge-key (was ca685c5).
 ```
-`git pull` downloaded the merged work and updated the two files in her folder (*Fast-forward* means her `main` label simply moved forward to the new commit). `git branch -d` deleted the branch label, which is no longer needed. **Deleting a branch deletes only the label; its commits are now part of `main` forever.** (Also click **Delete branch** on the pull-request page to remove GitHub's copy of the label.)
+`git pull` downloaded the merged work and updated the two files in her folder (*Fast-forward* means her `main` label simply moved forward to the new commit). Section 4, *GitHub and your computer*, follows these same steps column by column. `git branch -d` deleted the branch label, which is no longer needed. **Deleting a branch deletes only the label; its commits are now part of `main` forever.** (Also click **Delete branch** on the pull-request page to remove GitHub's copy of the label.)
 
 **Command output — the final map:**
 ```
