@@ -356,7 +356,7 @@ A **pull request (PR)** is a page on GitHub saying *"I propose to merge branch X
 **Filling it in:**
 1. Check the top bar reads **base: `main` ← compare: `your-branch`** ("merge *compare* into *base*").
 2. **Title** — what the change does. GitHub pre-fills it from the commit message if the branch has one commit, or from the **branch name** if it has several (*"Fix/merge key"*) — edit it; the title ends up in `main`'s history.
-3. **Description** — *what* changed, *why*, *how you checked it* ("re-ran `02_clean.R`: 4,812 households, no duplicates"). `Closes #12` closes that issue automatically on merge.
+3. **Description** — *what* changed, *why*, *how you checked it* ("re-ran `02_clean.R`: 4,812 households, no duplicates"). `Closes #12` closes that issue automatically on merge. The box opens pre-filled from `.github/pull_request_template.md`: fill in each heading, tick the checklist, and put the issue number after `Closes #`.
 4. **Create pull request.**
 
 **Reviewing:** the **Files changed** tab shows the whole diff; tick **Viewed** per file. To comment on a line, hover over it and click the **+** (choose *Add single comment*; *Start a review* keeps comments hidden until you *Submit review*). The **Commits** tab lists the branch's commits. If changes are needed, the author commits and pushes to the same branch — the PR updates itself.

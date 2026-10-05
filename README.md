@@ -104,6 +104,7 @@ The most important guardrails are *enforced by tools*, not just written down:
 - **`.githooks/pre-commit`** — a git hook, run by git before every commit from anywhere (terminal, GitHub Desktop, RStudio, Claude). It lists any data file over 5 MB (`.csv`, `.xlsx`, `.dta`, `.rds`, …) or any file over 25 MB. In a terminal it asks `Commit anyway? [y/N]`; in apps that can't ask (GitHub Desktop) it stops the commit and explains how to proceed. Limits are set at the top of the script. Activate once per clone with `git config core.hooksPath .githooks`.
 - **`.claude/settings.json`** — Claude Code permissions for the project. Claude cannot edit `04_scripts/00_setup_paths.*`, anything in `09_legacy_vault/`, or Google Drive `01_raw_data/` folders; cannot run inline code (`Rscript -e`, `python -c`); and must ask before every `git commit` / `git push`.
 - **`.claude/hooks/check_large_files.sh`** — a Claude Code hook: before Claude commits, it adds the same large-file list to the confirmation prompt, so you decide file by file what enters the repository.
+- **`.github/pull_request_template.md`** — every new pull request on GitHub opens pre-filled with *What changed and why*, *How I checked it*, a checklist (no data files, scripts source the paths file and run from the master, shared data regenerated from `main`, README / decision log updated) and `Closes #`. A reminder, not enforcement.
 
 ### Tracking files
 `PENDING.md`, `WORKSTREAMS.md` (in `01_progress_logs/`), and `decision_log.md` (in `02_quality_reports/`), plus the dated session logs — all described in Section 4. Blueprints: `log_template.md`, `decision_template.md`, `workstream_template.md`.
@@ -146,6 +147,7 @@ Skills also work globally from `~/.claude/skills/`. After editing a project skil
 ├── CLAUDE.md            # Agent operating rules
 ├── README.md            # Project context (from README_template.md on setup)
 ├── .gitignore           # Keeps data + local cruft out of git
+├── .github/             # pull_request_template.md: the checklist every new pull request starts with
 ├── .githooks/           # pre-commit: asks before large data files are committed
 ├── .claude/             # skills/ · rules/ · hooks/ · settings.json (Claude Code permissions)
 ├── 01_references/       # 00_guidelines · 01_project_documentation · 02_literature · 03_past_examples
