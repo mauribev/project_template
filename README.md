@@ -135,6 +135,7 @@ Reusable `/slash-command` pipelines. Claude also picks them up automatically whe
 Skills also work globally from `~/.claude/skills/`. After editing a project skill, sync it with `cp -R .claude/skills/<name> ~/.claude/skills/`. The full versioning/deprecation lifecycle is in `.claude/rules/skills_maintenance.md` (it loads automatically whenever Claude works inside `.claude/skills/`).
 
 ### Guidelines (`01_references/00_guidelines/`)
+- **`git_github_basics.md`** — how Git and GitHub work, explained on one small real example: the everyday loop on one screen (Section 0), branches, pull requests, conflicts, code on GitHub vs. data on Google Drive, a cheat sheet and an FAQ. Read it first if Git is new to you.
 - **`git_team_workflow.md`** — onboarding for teammates new to Git (the hybrid Git + Google Drive workflow, and the rules that keep data out of the repo).
 - **`setup_paths_template.md`** — the pathing recipe described above.
 
@@ -168,11 +169,17 @@ The canonical structure with per-folder rationale is documented in full in `READ
 
 This template is a living asset — the canonical home for "how Causal Design runs a project." When a project surfaces a genuinely reusable convention, template, or skill, **port it back here** (stripping anything project-specific) and bump the version note below.
 
-**Scaffold version:** v1.2 — `CLAUDE.md` restructure, September 2026.
+**Scaffold version:** v1.3 — team-workflow fixes, October 2026.
+- Adds **`.github/pull_request_template.md`**: every new pull request opens with *What changed and why*, *How I checked it*, a checklist and `Closes #` (issue #4, PR #7).
+- Makes the **raw-data protection work on Windows**: the `.claude/settings.json` rule matched only Mac Google Drive paths; it now blocks edits to any `01_raw_data/` folder on any drive (issue #3, PR #6).
+- Shortens **`git_github_basics.md`** and adds the everyday loop (Section 0) and lessons from the first pull requests.
+
+**v1.2** — `CLAUDE.md` restructure, September 2026.
 - Rewrites **`CLAUDE.md`** following Anthropic's official guidance (code.claude.com/docs: *memory*, *best practices*): from 152 lines / ~2,900 words to ~75 lines / ~1,250 words, holding only what applies in every session. No rule was dropped — each moved to where it loads when needed.
 - Moves the triggered workflows (session start, session logging with the PENDING / WORKSTREAMS / decision-log sync, lessons, transcripts) into four skills: `session-start`, `log-session`, `save-lesson`, `save-transcript`.
 - Moves language-specific conventions and the skills lifecycle into path-scoped rules under `.claude/rules/`.
 - Resolves contradictions (plan-and-wait vs. proceed-without-asking; "run code in the terminal" vs. "never run code in the terminal"; asking for the language every session), trims the ALL-CAPS emphasis to a single IMPORTANT, adds a *Commands* section, makes the `README.md` a real import (the old `@` references sat inside backticks and never loaded), and turns the template note into an HTML comment Claude never sees.
+- Adds **`git_github_basics.md`**, a plain-language Git & GitHub guide for teammates new to version control (PR #2).
 
 **v1.1** — back-ported from Matthew63 P2R, September 2026.
 - Adds the **`causal-report`** skill (v1.2.1) and the `06_workspace/04_report_drafts/` folder its workflow assumes, plus the `.gitignore` rules for report build trees.
