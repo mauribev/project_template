@@ -437,18 +437,15 @@ Git keeps **one version of the code per branch**; Google Drive keeps **one copy 
 
 **The problem** — and it exists with or without branches: when Maria runs her *modified, unmerged* `02_clean.R`, it overwrites `panel.rds` in the shared `03_clean_data`. Juan, running the analysis from `main`, silently reads a panel built with code he doesn't have.
 
-**The rule:** *work in progress writes to `02_temp_data`; only the finished code in `main` writes to `03_clean_data`.* In practice:
+**The rule:** *only code on `main` writes the shared data; every other run writes to your own sandbox.* Part 4 of `00_setup_paths` applies it automatically at the start of every run (recipe and full table: `setup_paths_template.md`, *Official runs and the sandbox*):
 1. **Raw data is read-only** for everyone — so only derived files can ever be affected, and those can be regenerated.
-2. **Branch runs write elsewhere** — a personal or per-branch folder under `02_temp_data`. This can be automatic: a person (not the AI) can add to `00_setup_paths.R`
-   ```r
-   branch <- system("git branch --show-current", intern = TRUE)
-   if (branch != "main") DATA_CLEAN <- file.path(DATA_TEMP, "branches", branch)
-   ```
-3. **After a merge, regenerate** the shared files by running the scripts (or the master script) from `main`.
-4. **Record which code produced a file** — e.g. write `git rev-parse --short HEAD` into the log.
-5. **Tell the team** when shared data is regenerated; log significant changes in `decision_log.md`.
+2. **Branch runs go to a sandbox.** On any branch other than `main`, `DATA_TEMP` and `DATA_CLEAN` point to `02_temp_data/sandbox/<your username>/`, and the run prints `SANDBOX RUN:` with the reason. Your scripts don't change. A sandbox starts empty, so run the master script to rebuild the chain there.
+3. **One setting decides how strict `main` is.** `DATA_RULE <- "lenient"` (one person committing straight to `main`): every run on `main` is official, with a note when the code isn't committed and pushed yet. `"strict"` (a team working through pull requests): `main` is official only when it matches GitHub exactly — nothing uncommitted in `04_scripts/`, nothing unpushed. Switch to strict when a second person joins.
+4. **After a merge, regenerate** the shared files: `git switch main`, `git pull`, then run the master script (or the changed scripts and everything after them). No sandbox notice means the output went to `03_clean_data`.
+5. **Record which code produced a file** with `log_output()` (in `04_scripts/01_functions/`) after each save: one row per save in `_output_log.csv` — file, time, person, commit, and whether the code matched GitHub.
+6. **Tell the team** when shared data is regenerated; log significant changes in `decision_log.md`.
 
-Data-engineering teams solve the same problem with separate *environments*: each developer's work writes to a private area, and only the official pipeline, run from `main`, writes the shared data.
+Data-engineering teams solve the same problem with separate *environments*: each developer's work writes to a private area, and only the official pipeline, run from `main`, writes the shared data. They usually let a machine rerun the pipeline after every merge; with beneficiary data on Google Drive, a person does it instead (step 4).
 
 ---
 
