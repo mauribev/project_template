@@ -6,7 +6,9 @@
   1. Copy the code block for your programming language (R, Python, or Stata).
   2. Save it as `00_setup_paths.[extension]` inside the `04_scripts/` folder.
   3. Add your computer's username and your specific local paths to the `if/else` block. 
-  4. At the top of all your analysis scripts, you only need to run one line of code to "call" this file.
+  4. Leave `DATA_RULE` at `"lenient"` while one person works on the project; switch it to `"strict"` when a second person joins (see *Official runs and the sandbox* below).
+  5. At the top of all your analysis scripts, you only need to run one line of code to "call" this file.
+* **Project created before October 2026?** Its setup file has only parts 1–3. Paste part 4 from the block below at the end of your existing file; parts 1–3 stay as they are.
 
 ---
 ## Templates for the setup file
@@ -37,6 +39,64 @@ if (user == "maria_p") {
 DATA_RAW   <- file.path(GDRIVE_PATH, "01_raw_data")
 DATA_TEMP  <- file.path(GDRIVE_PATH, "02_temp_data")
 DATA_CLEAN <- file.path(GDRIVE_PATH, "03_clean_data")
+
+# 4. Official run or sandbox run?
+# Google Drive keeps one copy of each data file and knows nothing about git
+# branches, so a run of unfinished code would overwrite the data everyone reads.
+# Runs that may not write the shared data write to this person's sandbox instead.
+#   "lenient": every run on main is official; a branch run goes to the sandbox.
+#              For one person committing straight to main.
+#   "strict":  only main exactly as on GitHub is official: nothing uncommitted in
+#              04_scripts/ and nothing unpushed. For a team working through PRs.
+# Either way, a run whose code version cannot be checked (git not found) goes to
+# the sandbox. DATA_RAW is read-only and is the same for every run.
+DATA_RULE <- "lenient"
+stopifnot(DATA_RULE %in% c("lenient", "strict"))
+
+git_out <- function(...) {
+  out <- tryCatch(
+    suppressWarnings(system2("git", c("-C", shQuote(GITHUB_PATH), ...),
+                             stdout = TRUE, stderr = FALSE)),
+    error = function(e) NULL)
+  if (is.null(out) || !is.null(attr(out, "status"))) NULL else out  # NULL: git missing or failed
+}
+GIT_BRANCH  <- git_out("branch", "--show-current")
+GIT_COMMIT  <- git_out("rev-parse", "--short", "HEAD")
+uncommitted <- git_out("status", "--porcelain", "--", "04_scripts")
+unpushed    <- git_out("rev-list", "--count", "origin/main..HEAD")  # compared with the last pull/fetch
+behind      <- git_out("rev-list", "--count", "HEAD..origin/main")
+
+git_found      <- !is.null(GIT_BRANCH) && !is.null(uncommitted)
+on_main        <- git_found && identical(GIT_BRANCH, "main")
+CODE_ON_GITHUB <- on_main && length(uncommitted) == 0 && identical(unpushed, "0")
+
+if (!git_found) {
+  OFFICIAL_RUN <- FALSE; reason <- "git not found, so the code version cannot be checked"
+} else if (!on_main) {
+  OFFICIAL_RUN <- FALSE; reason <- paste0("not on main (branch '", GIT_BRANCH, "')")
+} else if (DATA_RULE == "strict" && !CODE_ON_GITHUB) {
+  OFFICIAL_RUN <- FALSE; reason <- "strict rule: main has uncommitted changes in 04_scripts/ or unpushed commits"
+} else {
+  OFFICIAL_RUN <- TRUE
+}
+
+if (!OFFICIAL_RUN) {
+  SANDBOX    <- file.path(GDRIVE_PATH, "02_temp_data", "sandbox", user)
+  DATA_TEMP  <- file.path(SANDBOX, "02_temp_data")
+  DATA_CLEAN <- file.path(SANDBOX, "03_clean_data")
+  dir.create(DATA_TEMP,  recursive = TRUE, showWarnings = FALSE)
+  dir.create(DATA_CLEAN, recursive = TRUE, showWarnings = FALSE)
+  message("SANDBOX RUN: DATA_TEMP and DATA_CLEAN point to ", SANDBOX,
+          "\n  Reason: ", reason)
+} else if (!CODE_ON_GITHUB) {
+  message("Official run from code not yet on GitHub (uncommitted changes in 04_scripts/ ",
+          "or unpushed commits); _output_log.csv records code_on_github = FALSE.")
+}
+if (!is.null(behind) && !identical(behind, "0")) {
+  message("Note: as of your last pull, main is ", behind,
+          " commit(s) behind GitHub. Run git pull before an official run.")
+}
+rm(git_out, uncommitted, unpushed, behind, git_found, on_main)
 ```
 
 ### Python Setup (00_setup_paths.py)
@@ -66,6 +126,65 @@ else:
 DATA_RAW   = GDRIVE_PATH / "01_raw_data"
 DATA_TEMP  = GDRIVE_PATH / "02_temp_data"
 DATA_CLEAN = GDRIVE_PATH / "03_clean_data"
+
+# 4. Official run or sandbox run?
+# Google Drive keeps one copy of each data file and knows nothing about git
+# branches, so a run of unfinished code would overwrite the data everyone reads.
+# Runs that may not write the shared data write to this person's sandbox instead.
+#   "lenient": every run on main is official; a branch run goes to the sandbox.
+#              For one person committing straight to main.
+#   "strict":  only main exactly as on GitHub is official: nothing uncommitted in
+#              04_scripts/ and nothing unpushed. For a team working through PRs.
+# Either way, a run whose code version cannot be checked (git not found) goes to
+# the sandbox. DATA_RAW is read-only and is the same for every run.
+import subprocess
+
+DATA_RULE = "lenient"
+assert DATA_RULE in ("lenient", "strict"), "DATA_RULE must be 'lenient' or 'strict'"
+
+def _git_out(*args):
+    """Lines printed by a git command, or None if git is missing or the command fails."""
+    try:
+        result = subprocess.run(["git", "-C", str(GITHUB_PATH), *args],
+                                capture_output=True, text=True)
+    except OSError:
+        return None
+    return result.stdout.splitlines() if result.returncode == 0 else None
+
+_branch      = _git_out("branch", "--show-current")
+_commit      = _git_out("rev-parse", "--short", "HEAD")
+_uncommitted = _git_out("status", "--porcelain", "--", "04_scripts")
+_unpushed    = _git_out("rev-list", "--count", "origin/main..HEAD")  # compared with the last pull/fetch
+_behind      = _git_out("rev-list", "--count", "HEAD..origin/main")
+
+GIT_BRANCH = _branch[0] if _branch else None
+GIT_COMMIT = _commit[0] if _commit else None
+_git_found = _branch is not None and _uncommitted is not None
+_on_main   = _git_found and GIT_BRANCH == "main"
+CODE_ON_GITHUB = _on_main and not _uncommitted and _unpushed == ["0"]
+
+if not _git_found:
+    OFFICIAL_RUN, _reason = False, "git not found, so the code version cannot be checked"
+elif not _on_main:
+    OFFICIAL_RUN, _reason = False, f"not on main (branch '{GIT_BRANCH or ''}')"
+elif DATA_RULE == "strict" and not CODE_ON_GITHUB:
+    OFFICIAL_RUN, _reason = False, "strict rule: main has uncommitted changes in 04_scripts/ or unpushed commits"
+else:
+    OFFICIAL_RUN = True
+
+if not OFFICIAL_RUN:
+    SANDBOX    = GDRIVE_PATH / "02_temp_data" / "sandbox" / user
+    DATA_TEMP  = SANDBOX / "02_temp_data"
+    DATA_CLEAN = SANDBOX / "03_clean_data"
+    DATA_TEMP.mkdir(parents=True, exist_ok=True)
+    DATA_CLEAN.mkdir(parents=True, exist_ok=True)
+    print(f"SANDBOX RUN: DATA_TEMP and DATA_CLEAN point to {SANDBOX}\n  Reason: {_reason}")
+elif not CODE_ON_GITHUB:
+    print("Official run from code not yet on GitHub (uncommitted changes in 04_scripts/ "
+          "or unpushed commits); _output_log.csv records code_on_github = FALSE.")
+if _behind and _behind != ["0"]:
+    print(f"Note: as of your last pull, main is {_behind[0]} commit(s) behind GitHub. "
+          "Run git pull before an official run.")
 ```
 
 ### Stata Setup (00_setup_paths.do)
@@ -98,7 +217,124 @@ else {
 global DATA_RAW   "$GDRIVE_PATH/01_raw_data"
 global DATA_TEMP  "$GDRIVE_PATH/02_temp_data"
 global DATA_CLEAN "$GDRIVE_PATH/03_clean_data"
+
+* 4. Official run or sandbox run?
+* Google Drive keeps one copy of each data file and knows nothing about git
+* branches, so a run of unfinished code would overwrite the data everyone reads.
+* Runs that may not write the shared data write to this person's sandbox instead.
+*   "lenient": every run on main is official; a branch run goes to the sandbox.
+*              For one person committing straight to main.
+*   "strict":  only main exactly as on GitHub is official: nothing uncommitted in
+*              04_scripts/ and nothing unpushed. For a team working through PRs.
+* Either way, a run whose code version cannot be checked (git not found) goes to
+* the sandbox. DATA_RAW is read-only and is the same for every run.
+global DATA_RULE "lenient"
+global CD_USER "`user'"    // locals vanish when this file ends; log_output needs the user
+
+* _cd_git runs one git command. Stata cannot capture a command's output or exit
+* code, so git's output goes to a temporary file, followed by __OK__ only if git
+* succeeded (&& works in both the Mac/Linux shell and the Windows cmd shell).
+* Returns r(ok) = 1 if git ran, r(first) = first line, r(n) = number of lines.
+capture program drop _cd_git
+program define _cd_git, rclass
+    tempfile out
+    tempname fh
+    shell git -C "$GITHUB_PATH" `0' > "`out'" && echo __OK__ >> "`out'"
+    local ok 0
+    local n 0
+    local first ""
+    capture confirm file "`out'"
+    if _rc == 0 {
+        file open `fh' using "`out'", read text
+        file read `fh' line
+        while r(eof) == 0 {
+            local line = strtrim(subinstr(`"`line'"', char(13), "", .))
+            if `"`line'"' == "__OK__" local ok 1
+            else if `"`line'"' != "" {
+                local ++n
+                if `n' == 1 local first `"`line'"'
+            }
+            file read `fh' line
+        }
+        file close `fh'
+    }
+    return local ok "`ok'"
+    return local first `"`first'"'
+    return scalar n = `n'
+end
+
+_cd_git branch --show-current
+local git_found = `r(ok)'
+global GIT_BRANCH `"`r(first)'"'
+_cd_git rev-parse --short HEAD
+global GIT_COMMIT "`r(first)'"
+_cd_git status --porcelain -- 04_scripts
+local git_found = `git_found' & `r(ok)'
+local n_uncommitted = r(n)
+_cd_git rev-list --count origin/main..HEAD
+local unpushed = cond(`r(ok)', "`r(first)'", "?")
+_cd_git rev-list --count HEAD..origin/main
+local behind = cond(`r(ok)', "`r(first)'", "0")
+
+local on_main = `git_found' & ("$GIT_BRANCH" == "main")
+global CODE_ON_GITHUB = `on_main' & (`n_uncommitted' == 0) & ("`unpushed'" == "0")
+
+global OFFICIAL_RUN 0
+if !`git_found' {
+    local reason "git not found, so the code version cannot be checked"
+}
+else if !`on_main' {
+    local reason "not on main (branch '$GIT_BRANCH')"
+}
+else if "$DATA_RULE" == "strict" & !$CODE_ON_GITHUB {
+    local reason "strict rule: main has uncommitted changes in 04_scripts/ or unpushed commits"
+}
+else {
+    global OFFICIAL_RUN 1
+}
+
+if !$OFFICIAL_RUN {
+    global SANDBOX    "$GDRIVE_PATH/02_temp_data/sandbox/`user'"
+    global DATA_TEMP  "$SANDBOX/02_temp_data"
+    global DATA_CLEAN "$SANDBOX/03_clean_data"
+    capture mkdir "$GDRIVE_PATH/02_temp_data/sandbox"
+    capture mkdir "$SANDBOX"
+    capture mkdir "$DATA_TEMP"
+    capture mkdir "$DATA_CLEAN"
+    display as text "SANDBOX RUN: DATA_TEMP and DATA_CLEAN point to $SANDBOX"
+    display as text "  Reason: `reason'"
+}
+else if !$CODE_ON_GITHUB {
+    display as text "Official run from code not yet on GitHub (uncommitted changes in 04_scripts/ or unpushed commits); _output_log.csv records code_on_github = FALSE."
+}
+if "`behind'" != "0" & "`behind'" != "" {
+    display as text "Note: as of your last pull, main is `behind' commit(s) behind GitHub. Run git pull before an official run."
+}
 ```
+
+*Part 4 and `log_output` were tested on a Mac in all three languages (R, Python, Stata SE 18), with paths that contain spaces: on a branch, with uncommitted and unpushed changes, behind GitHub, and without git. They have not yet been run on Windows; please report anything that fails there.*
+
+---
+## Official runs and the sandbox (part 4)
+
+Git keeps one version of the code per branch; Google Drive keeps one copy of each data file. Without part 4, running a script from an unfinished branch overwrites `03_clean_data`, and everyone else then reads data built with code they don't have. Part 4 decides at the start of every run whether this run may write the shared data:
+
+| Situation | `"lenient"` (one person) | `"strict"` (a team) |
+|---|---|---|
+| On a branch | sandbox | sandbox |
+| On `main`, uncommitted changes in `04_scripts/` | official, with a note | sandbox |
+| On `main`, committed but not pushed | official, with a note | sandbox |
+| On `main`, matches GitHub | official | official |
+| `main` behind GitHub (as of your last pull) | a reminder to `git pull` | a reminder to `git pull` |
+| git not found | sandbox | sandbox |
+
+- **Official** means `DATA_TEMP` and `DATA_CLEAN` keep their usual paths. **Sandbox** means both point to `02_temp_data/sandbox/<username>/`, which holds its own `02_temp_data/` and `03_clean_data/`. Analysis scripts don't change: they still write to `DATA_CLEAN`, and the variable points elsewhere. A sandbox run prints `SANDBOX RUN:` and the reason.
+- **A sandbox starts empty.** Run the master script on the branch, so the whole chain rebuilds from `DATA_RAW`; that is also the honest test of the change.
+- **Only `04_scripts/` counts as uncommitted changes**, so notes in `06_workspace/` or regenerated figures in `05_outputs/` never block an official run.
+- **After merging a pull request** that changed data-producing scripts: `git switch main`, `git pull`, re-run the master script (or the changed scripts and everything after them). No sandbox notice means the output went to `03_clean_data`.
+- **Record what produced each file** with `log_output()` from `04_scripts/01_functions/` after each save: it adds a row (file, time, user, commit, `code_on_github`, `official`) to `_output_log.csv` in the same folder. It reads `GIT_COMMIT`, `CODE_ON_GITHUB` and `OFFICIAL_RUN` from part 4.
+- **Never write to `DATA_RAW`**, in either kind of run.
+
 ---
 ## How to Call the Setup File
 At the absolute top of every new analysis script you write, you must include one line of code to execute the setup file. This ensures your script always knows where the data lives, regardless of where the script itself is saved.

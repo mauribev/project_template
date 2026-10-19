@@ -137,7 +137,7 @@ Skills also work globally from `~/.claude/skills/`. After editing a project skil
 ### Guidelines (`01_references/00_guidelines/`)
 - **`git_github_basics.md`** — how Git and GitHub work, explained on one small real example: the everyday loop on one screen (Section 0), branches, pull requests, conflicts, code on GitHub vs. data on Google Drive, a cheat sheet and an FAQ. Read it first if Git is new to you.
 - **`git_team_workflow.md`** — onboarding for teammates new to Git (the hybrid Git + Google Drive workflow, and the rules that keep data out of the repo).
-- **`setup_paths_template.md`** — the pathing recipe described above.
+- **`setup_paths_template.md`** — the pathing recipe described above, including *Official runs and the sandbox*: which runs may write the shared `03_clean_data`, and the `DATA_RULE` setting.
 
 ---
 
@@ -173,6 +173,7 @@ This template is a living asset — the canonical home for "how Causal Design ru
 - Adds **`.github/pull_request_template.md`**: every new pull request opens with *What changed and why*, *How I checked it*, a checklist and `Closes #` (issue #4, PR #7).
 - Makes the **raw-data protection work on Windows**: the `.claude/settings.json` rule matched only Mac Google Drive paths; it now blocks edits to any `01_raw_data/` folder on any drive (issue #3, PR #6).
 - Shortens **`git_github_basics.md`** and adds the everyday loop (Section 0) and lessons from the first pull requests.
+- Adds **official runs and the sandbox** (part 4 of the paths recipe, R / Python / Stata): a run from a branch writes to `02_temp_data/sandbox/<user>/` instead of the shared `03_clean_data`. One setting, `DATA_RULE`, chooses `"lenient"` (one person: every run on `main` is official) or `"strict"` (a team: only `main` exactly as on GitHub is official). A new helper, **`04_scripts/01_functions/log_output.*`**, records file, time, person and commit for each saved dataset in `_output_log.csv` (issue #5).
 
 **v1.2** — `CLAUDE.md` restructure, September 2026.
 - Rewrites **`CLAUDE.md`** following Anthropic's official guidance (code.claude.com/docs: *memory*, *best practices*): from 152 lines / ~2,900 words to ~75 lines / ~1,250 words, holding only what applies in every session. No rule was dropped — each moved to where it loads when needed.
