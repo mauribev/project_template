@@ -1,6 +1,6 @@
 ---
 name: causal-report
-version: 1.2.1
+version: 1.3.0
 description: Produces a Causal Design client report as a Word document — cover, logo page, table of contents and acronyms from a hand-authored Word front matter, body authored in Quarto, the two stitched into one flat .docx. All typography, colour and table formatting come from a profile YAML, so no design decision is left to whoever is writing. Use when a report, assessment or memo has to be delivered as a formatted .docx.
 ---
 
@@ -28,7 +28,9 @@ One command. There are no flags to get wrong, and every check runs every time.
 python3 <skill>/scripts/render.py --spec report_spec.yaml
 ```
 
-Then open the file in Word, click the table of contents and press **F9** to fill in page numbers. The TOC is a live Word field and cannot be populated at build time.
+A normal build does not use Microsoft Word. Before delivery, add `--check-layout`: on a Mac with Word, Word opens a copy in the background, and the pages are checked (the cover fits on one page with its whole title, no page is blank, the contents pages are where the spec says). If it finds a problem, the build fails and says what to fix. It is off by default because it takes over Word for a moment: **never run it, or `selftest.py`, while someone is working in Word.** Without Word the build works the same and the layout is simply not checked.
+
+If the report has a table of contents, Word fills in its page numbers when the file is opened (or click it and press **F9**).
 
 ---
 
@@ -41,7 +43,20 @@ Then open the file in Word, click the table of contents and press **F9** to fill
    ```bash
    python3 <skill>/scripts/make_templates.py --profile long_report --list-tokens
    ```
-3. Fill every listed token into the spec's `values:` block, and set `body:` and `out:`.
+3. Fill every listed token into the spec's `values:` block, and set `body:` and `out:`. A value can run over two lines on the cover: write `\n` where the line should break, e.g. `TITLE: "Impact Evaluation of X\nFinancial Proposal"`.
+4. Short documents (a financial proposal, a memo) need no table of contents or acronyms page. Switch them off in the spec; both default to on:
+   ```yaml
+   include:
+     toc: false
+     acronyms: false
+   ```
+   Either can be switched off alone.
+5. When the acronyms page is included, list the acronyms in the spec; the build writes them into the table, sorted, and refuses to build if the list is missing, so `###` placeholders can never reach a client:
+   ```yaml
+   acronyms:
+     CD: "Causal Design"
+     MDE: "minimum detectable effect"
+   ```
 
 **Do not** edit `profile.yaml` for a single report. It describes the house style, not this document.
 
@@ -64,8 +79,10 @@ python3 <skill>/scripts/render.py --spec report_spec.yaml
 
 Report to the user:
 - the output path and size;
-- that they must press F9 in Word to populate the TOC;
-- anything the lint pass or the build printed as a note.
+- whether the layout was checked: only with `--check-layout` (needs macOS with Microsoft Word); otherwise say it was not checked;
+- anything the lint pass or the build printed as a note, such as a cover line set in a smaller font because it was long.
+
+**After changing the skill** (scripts, profile or front matter), run `python3 <skill>/scripts/selftest.py`. It builds the example report in six configurations, including a long two-line title, a very long client line and each combination of the contents switches, and checks each in Word. All six must pass.
 
 ---
 
@@ -132,12 +149,23 @@ Write "the table below", or cite the section. Numbers are reassigned whenever co
 
 ---
 
+## Page flow defaults
+
+Set 2026-10-15 to keep documents free of white space. Both live in `profiles/long_report/profile.yaml`; change them there, never in Word (the next build would overwrite a Word edit).
+
+| Behaviour | Default | To change it |
+|---|---|---|
+| Heading 1 | Follows on the same page, with 24 pt above it | Add `page_break_before: true` to `Heading1` to start each section on a new page; edit `space_before` (twips: 240 = 12 pt, 480 = 24 pt) to change the gap |
+| Tables | May start on one page and continue on the next. A row is never cut in two, and the title line and header row stay with the first body row | Set `table: keep_together_max_rows` to N to keep tables of up to N rows whole on one page; 0 turns it off |
+
+After changing either, run `scripts/selftest.py`.
+
 ## Anti-Patterns
 
 - **Restyling headings in Word.** The next build overwrites you. Change `profile.yaml`.
 - **Editing the rendered `.docx` and shipping that.** The `.qmd` is the source of truth. Edits made in Word are legitimate — that is what a review cycle is — but they have to come back through `import_docx.py`, or the next render discards them.
 - **Editing the `.qmd` while a document is out for review.** The importer cannot tell your changes from the reviewers' and will refuse to run. Wait for the file to come back.
-- **Adding manual page breaks before top-level sections.** `page_break_before` is set on the Heading 1 style.
+- **Adding manual page breaks before top-level sections.** Sections follow on, with 24 pt above each Heading 1 (see *Page flow defaults* below). Change the profile, not the document.
 - **Hand-formatting a table** — shading cells, bolding the header row. The build stamps the house look onto every table from `profile.yaml`; a plain pipe table comes out right.
 - **Running `quarto render` directly and shipping that.** It produces the body with no front matter. Only `render.py` produces the deliverable.
 - **Putting design values in the `.qmd` YAML.** They belong in `profile.yaml`, or every report drifts.
@@ -171,6 +199,9 @@ Write "the table below", or cite the section. Numbers are reassigned whenever co
 | `scripts/import_docx.py` | Brings an edited `.docx` back into the `.qmd`, section by section. |
 | `scripts/docx_import.py` | Conversion and normalisation, shared by render (baseline) and import. |
 | `scripts/renumber_titles.py` | Resequences `**Figure N.**` / `**Table N.**`. |
+| `scripts/verify_layout.py` + `word_export_pdf.applescript` | Step 6 of the build, only with `--check-layout`: Word exports the report to PDF, and the pages are checked. Writes only to its own folder in Word's sandbox and removes only the files it created. |
+| `scripts/selftest.py` | Builds the example in six configurations and checks each in Word. Run after any change to the skill. |
+| `profiles/<name>/patches/` | One-time patches applied to the front matter, kept so each change can be audited. |
 | `scripts/docx_common.py` | Shared Word-package helpers. |
 
 Build artifacts land in `build/` next to the spec and are disposable. The baseline for the next import lives in `.causal-report/` and **is** committed — without it the round trip has nothing to compare against.
@@ -183,7 +214,7 @@ Build artifacts land in `build/` next to the spec and are disposable. The baseli
 
 ## Learnings
 
-*Candidates for promotion into the pipeline above. Per `.claude/rules/skills_maintenance.md`, promote when one recurs two or three times.*
+*Candidates for promotion into the pipeline above. Per `CLAUDE.md` §7, promote when one recurs two or three times.*
 
 - `2026-09-22` Word silently splits a typed token across runs — `{{subtitle}}` was stored as `{{` + `subtitle` + `}}`. Substitution joins paragraph text before matching and writes back surgically, so fields such as `PAGE` survive. Any future token-based template needs the same treatment.
 - `2026-09-22` A hand-authored Word file carries formatting the profile never asked for (small caps on H1 and H3). Style application therefore clears emphasis before setting it, or the profile is not really authoritative.

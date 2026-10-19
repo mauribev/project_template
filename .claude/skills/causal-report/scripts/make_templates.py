@@ -129,9 +129,36 @@ def main() -> None:
     for u in unused:
         print(f"  note: spec value '{u}' has no matching token in the front matter")
 
+    # Front-matter blocks this report includes (spec `include:`). Defaults keep
+    # everything, so existing specs build exactly as before.
+    include = {"toc": True, "acronyms": True}
+    unknown = set(spec.get("include") or {}) - set(include)
+    if unknown:
+        raise SystemExit(f"unknown key(s) under include: {', '.join(sorted(unknown))}; "
+                         f"allowed: {', '.join(include)}")
+    include.update({k: bool(v) for k, v in (spec.get("include") or {}).items()})
+
+    fit = profile.get("cover_fit") or {}
+    fit_at = dc.paragraphs_with_tokens(work, fit.get("tokens", [])) if fit else []
+
     n = dc.replace_tokens(work, values)
     dc.assert_no_tokens_left(work)
     print(f"  substituted {n} text runs across {len(present)} tokens")
+
+    if fit:
+        for note in dc.fit_lines(work, fit_at, int(fit["max_chars"]), float(fit["min_size"])):
+            print(f"  {note}")
+    for note in dc.drop_frontmatter_blocks(work, include["toc"], include["acronyms"]):
+        print(f"  {note}")
+    if include["acronyms"]:
+        acronyms = spec.get("acronyms") or {}
+        if not acronyms:
+            raise SystemExit("the acronyms page is included but the spec lists no acronyms. Add them "
+                             "under `acronyms:` (ABBREVIATION: meaning), or leave the page out with "
+                             "`include: {acronyms: false}`.")
+        print(f"  acronyms page: {dc.fill_acronyms(work, acronyms)} entries")
+    dc.trim_frontmatter_end(work)
+    dc.assert_no_placeholders(work)
 
     style_pass(work, profile, donor)
     problems = dc.validate_package(work)

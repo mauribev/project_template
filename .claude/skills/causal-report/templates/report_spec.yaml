@@ -17,6 +17,19 @@ out: report.docx              # the finished report, relative to this file
 #
 # The build fails if a token has no value here, and notes any value that has no
 # matching token. Names are case-insensitive.
+# Front-matter pages to include. Both default to true; a short document such
+# as a financial proposal or a memo usually sets both to false.
+# include:
+#   toc: false
+#   acronyms: false
+
+# Acronyms for the acronyms page, one per line, sorted automatically. Required
+# when the acronyms page is included; the build refuses to ship placeholders.
+acronyms:
+  CD: "Causal Design"
+
+# A value can break onto a second line on the cover: write \n where the line
+# should break, e.g. TITLE: "Impact Evaluation of X\nFinancial Proposal".
 values:
   TITLE: "Report title as it appears on the cover"
   SUBTITLE: "Short document type, used in the running footer"

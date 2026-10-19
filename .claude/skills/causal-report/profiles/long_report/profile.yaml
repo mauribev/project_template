@@ -30,6 +30,16 @@ sources:
   frontmatter: frontmatter_source.docx
   specimen: style_specimen.docx
 
+# The cover's bottom row has a fixed height, so the "CLIENT, COUNTRY" line must
+# not wrap more than once. Measured in Word (2026-10-15): bold small caps at
+# 14.5 pt take about 12 pt per character, so the full-width line holds about 40
+# characters. Longer lines are scaled down in proportion, to no less than
+# min_size points. See patches/2026-10-15_cover_fit.py.
+cover_fit:
+  tokens: [CLIENT, COUNTRY]
+  max_chars: 38
+  min_size: 9
+
 # Number of Word sections in the front matter that come BEFORE the body.
 # Here: 1 cover, 2 logo/"Prepared for", 3 TOC + acronyms. Section 4 is the body.
 frontmatter_sections: 3
@@ -69,7 +79,12 @@ styles:
   BlockText:      {size: 10, color: text, italic: true, indent: 480, indent_right: 480, space_after: 120}
   ImageCaption:   {size: 9,  color: text, italic: true, indent: 0, space_before: 60, space_after: 120}
   TableCaption:   {size: 9,  color: text, italic: true, indent: 0, space_before: 60, space_after: 60}
-  Heading1:       {size: 19, color: heading, bold: true, indent: 0, page_break_before: true, space_after: 180}
+  # DEFAULT (2026-10-15): a Heading 1 does NOT start a new page; it follows on,
+  # with 24 pt above it (space_before: 480 twips), so documents carry no forced
+  # white space. To start every section on a new page instead, add
+  # `page_break_before: true` to Heading1 below. To change the gap, edit
+  # space_before (twips: 240 = 12 pt, 480 = 24 pt).
+  Heading1:       {size: 19, color: heading, bold: true, indent: 0, space_before: 480, space_after: 180}
   Heading2:       {size: 15, color: heading, bold: true, indent: 0, space_before: 240, space_after: 120}
   Heading3:       {size: 13, color: heading, bold: true, indent: 0, space_before: 200, space_after: 100}
   Heading4:       {size: 11, color: accent,  bold: true, small_caps: true, indent: 0, space_before: 200, space_after: 80}
@@ -87,6 +102,12 @@ table:
   body:   {size: 9, color: text}
   header: {size: 9, color: white, fill: "008CCC", bold: true}
   bands:  {odd: "FFFFFF", even: "D4E2E9"}
+  # DEFAULT (2026-10-15): tables may start on one page and continue on the
+  # next, so they leave no white space. Two things always hold: a row is never
+  # cut in two, and a table's title line and header row stay with its first
+  # body row. To keep short tables whole on one page instead, set this to the
+  # largest number of rows to keep together (e.g. 15); 0 turns it off.
+  keep_together_max_rows: 0
 
 # --- Page ---------------------------------------------------------------------
 # Twips: 1440 = 1 inch. Letter is 12240 x 15840.

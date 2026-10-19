@@ -18,6 +18,15 @@ Steps
                          opens correctly in Word and in Google Docs
 5. validate           -- structural checks on the result; the command fails
                          rather than handing over a file Word might refuse
+6. layout check       -- ONLY with --check-layout. On macOS with Microsoft Word,
+                         Word opens a copy in the background and exports it to
+                         PDF, and the pages are checked: the cover fits on one
+                         page with its whole title, no page is blank, and the
+                         contents pages are where the spec says
+                         (verify_layout.py). Off by default because it takes
+                         over Word for a moment, which interrupts anyone
+                         working in Word. Without Word it reports that the
+                         layout was not checked; the build still succeeds.
 
 Afterwards: open the file in Word, click the table of contents, press F9 to
 populate page numbers. The TOC is a live Word field, so it cannot be filled in
@@ -84,6 +93,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--spec", type=Path, required=True)
+    ap.add_argument("--check-layout", action="store_true",
+                    help="also check the page layout in Microsoft Word (macOS; opens Word briefly)")
     ap.add_argument("--skip-lint", action="store_true",
                     help="render anyway despite source-lint findings (not advised)")
     args = ap.parse_args()
@@ -98,11 +109,11 @@ def main() -> None:
     if not body_qmd.exists():
         raise SystemExit(f"body not found: {body_qmd}")
 
-    print("[1/5] Building templates from the profile ...")
+    print("[1/6] Building templates from the profile ...")
     sys.argv = ["make_templates.py", "--spec", str(args.spec)]
     mt.main()
 
-    print("[2/5] Linting the source ...")
+    print("[2/6] Linting the source ...")
     problems = lint_source(body_qmd)
     if problems:
         for p in problems:
@@ -112,7 +123,7 @@ def main() -> None:
     else:
         print("  clean")
 
-    print("[3/5] Rendering the body ...")
+    print("[3/6] Rendering the body ...")
     subprocess.run(["quarto", "render", str(body_qmd), "--to", "docx"], check=True)
     rendered = body_qmd.with_suffix(".docx")
     if not rendered.exists():
@@ -135,7 +146,7 @@ def main() -> None:
     shutil.rmtree(body_work, ignore_errors=True)
     print(f"  formatted {n_tables} table(s)")
 
-    print("[4/5] Stitching front matter + body ...")
+    print("[4/6] Stitching front matter + body ...")
     try:
         from docx import Document
         from docxcompose.composer import Composer
@@ -148,7 +159,7 @@ def main() -> None:
     composer.save(str(out))
     staged.unlink(missing_ok=True)   # the .qmd is the source of truth
 
-    print("[5/5] Validating the result ...")
+    print("[5/6] Validating the result ...")
     work = dc.unpack(out, base / "build" / ".verify")
     issues = dc.validate_package(work)
     leftover = dc.find_tokens(work)
@@ -178,9 +189,23 @@ def main() -> None:
     }, indent=2), encoding="utf-8")
     print(f"  baseline stored in {import_docx.STATE_DIR}/")
 
+    include = spec.get("include") or {}
+    if args.check_layout:
+        print("[6/6] Checking the layout in Word ...")
+        import verify_layout as vl
+        values = {k.upper(): v for k, v in (spec.get("values") or {}).items()}
+        code, msg = vl.verify(out, str(values.get("DATE", "")), toc=bool(include.get("toc", True)),
+                              title=str(values.get("TITLE", "")).replace("\n", " "))
+        print(f"  {msg}")
+        if code == vl.LAYOUT_PROBLEM:
+            raise SystemExit(f"layout check failed (the file is kept for inspection: {out})")
+    else:
+        print("[6/6] Layout not checked in Word (add --check-layout before delivery; it opens Word briefly)")
+
     size = out.stat().st_size
     print(f"\nDone -> {out}  ({size:,} bytes)")
-    print("Open in Word, click the table of contents, press F9 to fill in page numbers.")
+    if include.get("toc", True):
+        print("Open in Word, click the table of contents, press F9 to fill in page numbers.")
     print("When an edited copy comes back:  import_docx.py --spec <spec> --from <edited>.docx")
 
 

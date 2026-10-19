@@ -138,6 +138,192 @@ def _replace_in_paragraph(para, values: dict[str, str]) -> int:
             changed += 1
         if new != new.strip():
             node.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        if "\n" in (node.text or ""):
+            _split_on_newlines(node)
+    return changed
+
+
+def _split_on_newlines(t_node) -> None:
+    """Turn "\\n" in a value into Word line breaks: <w:t>a</w:t><w:br/><w:t>b</w:t>.
+
+    A spec value such as TITLE: "Impact evaluation\\nFinancial proposal" then
+    puts the second part on its own line, in the same run and so the same style.
+    """
+    parts = (t_node.text or "").split("\n")
+    t_node.text = parts[0]
+    anchor = t_node
+    for part in parts[1:]:
+        br = etree.Element(q("br"))
+        anchor.addnext(br)
+        t_new = etree.Element(q("t"))
+        t_new.text = part
+        t_new.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        br.addnext(t_new)
+        anchor = t_new
+
+
+def paragraphs_with_tokens(workdir: Path, tokens: list[str]) -> list[int]:
+    """Positions (in document order) of body paragraphs containing any of the tokens."""
+    root = parse(workdir / "word" / "document.xml").getroot()
+    wanted = {t.upper() for t in tokens}
+    hits = []
+    for i, p in enumerate(root.iter(q("p"))):
+        text = "".join(t.text or "" for t in p.iter(q("t")))
+        if {m.group(1).upper() for m in TOKEN_RE.finditer(text)} & wanted:
+            hits.append(i)
+    return hits
+
+
+def fit_lines(workdir: Path, positions: list[int], max_chars: int, min_pt: float) -> list[str]:
+    """Shrink the font of the given paragraphs when their text is too long for one line.
+
+    Why: the cover's client line ("CLIENT, COUNTRY") sits in a row of fixed
+    height. A long client name would otherwise wrap and be clipped. The profile
+    states how many characters fit at full size; longer text is scaled down in
+    proportion, never below min_pt. Returns a note for each paragraph changed.
+    """
+    doc = workdir / "word" / "document.xml"
+    tree = parse(doc)
+    paras = list(tree.getroot().iter(q("p")))
+    notes = []
+    for i in positions:
+        p = paras[i]
+        text = "".join(t.text or "" for t in p.iter(q("t")))
+        if len(text) <= max_chars:
+            continue
+        sizes = [el for el in p.iter(q("sz"), q("szCs"))]
+        if not sizes:
+            continue
+        full = max(int(el.get(q("val"))) for el in sizes)          # half-points
+        new = max(int(full * max_chars / len(text)), int(min_pt * 2))
+        for el in sizes:
+            el.set(q("val"), str(new))
+        notes.append(f"cover line of {len(text)} characters set at {new / 2:g} pt (full size {full / 2:g} pt)")
+    if notes:
+        save(tree, doc)
+    return notes
+
+
+def drop_frontmatter_blocks(workdir: Path, toc: bool, acronyms: bool) -> list[str]:
+    """Remove the table of contents and/or the acronyms page from the front matter.
+
+    The front matter is: cover (section 1), logo page (section 2), then one
+    section holding the table of contents, a page break, and the acronyms page,
+    ending in a section break. Short documents such as a financial proposal need
+    neither. With both off, the whole third section goes, section break included,
+    so the body follows the logo page with no blank page. With one off, only its
+    block goes. Blocks are found by structure (section breaks, the TOC field,
+    the page break after it), not by fixed positions.
+    """
+    if toc and acronyms:
+        return []
+    doc = workdir / "word" / "document.xml"
+    tree = parse(doc)
+    body = tree.getroot().find(q("body"))
+    kids = list(body)
+    breaks = [i for i, el in enumerate(kids)
+              if el.tag == q("p") and el.find(f"{q('pPr')}/{q('sectPr')}") is not None]
+    if len(breaks) < 3:
+        raise SystemExit("front matter: expected three section breaks (cover, logo page, contents)")
+    start, end = breaks[1] + 1, breaks[2]                       # the contents section
+    toc_field = next((i for i in range(start, end + 1)
+                      if kids[i].find(f".//{q('instrText')}") is not None
+                      and "TOC" in "".join(kids[i].itertext())), None)
+    if toc_field is None:
+        raise SystemExit("front matter: no table-of-contents field found in the third section")
+    page_break = next((i for i in range(toc_field + 1, end)
+                       if any(b.get(q("type")) == "page" for b in kids[i].iter(q("br")))), None)
+    if page_break is None:
+        raise SystemExit("front matter: no page break between the contents and the acronyms")
+
+    if not toc and not acronyms:
+        drop, removed = range(start, end + 1), "table of contents and acronyms"
+    elif not toc:
+        drop, removed = range(start, page_break + 1), "table of contents"
+    else:
+        drop, removed = range(page_break, end), "acronyms"
+    for i in drop:
+        body.remove(kids[i])
+    save(tree, doc)
+    return [f"left out: {removed}"]
+
+
+def fill_acronyms(workdir: Path, acronyms: dict) -> int:
+    """Write the spec's acronyms into the front matter's acronyms table.
+
+    The source table holds placeholder rows ("###", highlighted yellow). They
+    are replaced by one row per acronym, sorted alphabetically (ignoring case),
+    each copied from the first placeholder row so the column widths and fonts
+    stay the same; the yellow highlight is removed. Returns the number of rows.
+    """
+    doc = workdir / "word" / "document.xml"
+    tree = parse(doc)
+    tables = [tb for tb in tree.getroot().iter(q("tbl")) if "###" in "".join(tb.itertext())]
+    if len(tables) != 1:
+        raise SystemExit(f"front matter: expected one acronyms table with ### placeholders, found {len(tables)}")
+    tbl = tables[0]
+    rows = tbl.findall(q("tr"))
+    template = rows[0]
+    for tr in rows:
+        tbl.remove(tr)
+    import copy
+    items = sorted(((str(k), str(v)) for k, v in acronyms.items()), key=lambda kv: kv[0].lower())
+    for abbr, meaning in items:
+        tr = copy.deepcopy(template)
+        for hl in list(tr.iter(q("highlight"))):
+            hl.getparent().remove(hl)
+        cells = tr.findall(q("tc"))
+        for tc, text in zip(cells, (abbr, meaning)):
+            ts = list(tc.iter(q("t")))
+            ts[0].text = text
+            for extra in ts[1:]:
+                extra.text = ""
+        tbl.append(tr)
+    save(tree, doc)
+    return len(items)
+
+
+def assert_no_placeholders(workdir: Path) -> None:
+    """A client must never see the template's ### placeholders."""
+    tree = parse(workdir / "word" / "document.xml")
+    if "###" in "".join(tree.getroot().itertext()):
+        raise SystemExit("the front matter still contains ### placeholders")
+
+
+def trim_frontmatter_end(workdir: Path) -> int:
+    """Remove what would put a blank page between the front matter and the body.
+
+    After the front matter's last section break, the source holds an empty
+    paragraph; the body's first Heading 1 starts a new page, so that paragraph
+    sat alone on a blank page. The last section-break paragraph also carried a
+    manual page break, redundant with the section break itself (a new page).
+    Both are removed. Returns the number of elements changed.
+    """
+    doc = workdir / "word" / "document.xml"
+    tree = parse(doc)
+    body = tree.getroot().find(q("body"))
+    kids = list(body)
+    breaks = [i for i, el in enumerate(kids)
+              if el.tag == q("p") and el.find(f"{q('pPr')}/{q('sectPr')}") is not None]
+    if not breaks:
+        return 0
+    last = breaks[-1]
+    changed = 0
+    for el in kids[last + 1:]:
+        if el.tag == q("p") and not "".join(el.itertext()).strip() \
+                and el.find(f".//{q('drawing')}") is None:
+            body.remove(el)
+            changed += 1
+    if not "".join(kids[last].itertext()).strip():
+        for br in list(kids[last].iter(q("br"))):
+            if br.get(q("type")) == "page":
+                run = br.getparent()
+                run.remove(br)
+                if not len([c for c in run if c.tag != q("rPr")]):
+                    run.getparent().remove(run)
+                changed += 1
+    if changed:
+        save(tree, doc)
     return changed
 
 
@@ -183,6 +369,8 @@ _ORDER = {
             "bidi", "adjustRightInd", "snapToGrid", "spacing", "ind",
             "contextualSpacing", "mirrorIndents", "suppressOverlap", "jc",
             "textDirection", "textAlignment", "outlineLvl", "rPr", "sectPr"],
+    "trPr": ["cnfStyle", "divId", "gridBefore", "gridAfter", "wBefore", "wAfter",
+             "cantSplit", "trHeight", "tblHeader", "tblCellSpacing", "jc", "hidden"],
     "tcPr": ["cnfStyle", "tcW", "gridSpan", "hMerge", "vMerge", "tcBorders",
              "shd", "noWrap", "tcMar", "textDirection", "tcFitText", "vAlign",
              "hideMark"],
@@ -421,12 +609,14 @@ def stamp_table_formatting(workdir: Path, profile: dict) -> int:
 
     tree = parse(path)
     header, bands = cfg["header"], cfg["bands"]
+    keep_max = int(cfg.get("keep_together_max_rows", 0))
     touched = 0
 
     for tbl in tree.getroot().iter(q("tbl")):
         style = tbl.find(f"{q('tblPr')}/{q('tblStyle')}")
         if style is None or style.get(q("val")) != cfg["style_id"]:
             continue
+        _keep_table_together(tbl, keep_max)
         for row_i, tr in enumerate(tbl.findall(q("tr"))):
             is_header = row_i == 0
             if is_header:
@@ -460,6 +650,52 @@ def stamp_table_formatting(workdir: Path, profile: dict) -> int:
     if touched:
         save(tree, path)
     return touched
+
+
+def _keep_table_together(tbl, max_rows: int) -> None:
+    """Control how Word breaks tables across pages.
+
+    Always:
+      - every row gets cantSplit, so no row is ever cut in two;
+      - the bold title line above the table ("**Table N. ...**") and the
+        header row are kept with the first body row, so a title or a header is
+        never left alone at the bottom of a page.
+    The rest of the table may continue on the next page (default since
+    2026-10-15, to avoid white space).
+
+    Optionally, a table of at most max_rows rows is kept whole on one page
+    (keepNext on every row but the last). The profile's
+    `table: keep_together_max_rows` sets this; 0 (the default) turns it off.
+    """
+    rows = tbl.findall(q("tr"))
+    for tr in rows:
+        trpr = tr.find(q("trPr"))
+        if trpr is None:
+            trpr = etree.Element(q("trPr"))
+            anchor = tr.find(q("tblPrEx"))
+            if anchor is not None:
+                anchor.addnext(trpr)
+            else:
+                tr.insert(0, trpr)
+        _set(trpr, "cantSplit")
+
+    def keep_next(p):
+        ppr = p.find(q("pPr"))
+        if ppr is None:
+            ppr = etree.Element(q("pPr"))
+            p.insert(0, ppr)
+        _set(ppr, "keepNext")
+
+    prev = tbl.getprevious()
+    if prev is not None and prev.tag == q("p") and \
+            re.match(r"\s*(Table|Figure)\s+\d+\.", "".join(prev.itertext())):
+        keep_next(prev)
+    whole = bool(max_rows) and len(rows) <= max_rows
+    for tr in (rows[:-1] if whole else rows[:1]):
+        if len(rows) < 2:
+            break
+        for p in tr.iter(q("p")):
+            keep_next(p)
 
 
 def graft_missing_styles(workdir: Path, donor: Path, font: str) -> list[str]:

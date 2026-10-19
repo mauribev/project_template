@@ -8,3 +8,7 @@ values:
   CLIENT: "Causal Design"
   COUNTRY: "Example"
   DATE: "1 January 2027"
+
+acronyms:
+  CD: "Causal Design"
+  MDE: "minimum detectable effect"

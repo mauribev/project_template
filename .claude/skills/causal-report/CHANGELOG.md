@@ -1,5 +1,35 @@
 # Changelog — causal-report
 
+## [1.3.0] — 2026-10-15
+
+Found on the Matthew 6:3 financial proposal: the cover's client line wrapped and pushed the date onto a second cover page, and nothing in the build could see it. The skill now checks the layout as Word renders it, and the front matter adapts to short documents.
+
+### Added
+
+- **Layout check in Word (build step 6, `verify_layout.py`), opt-in with `--check-layout`.** It ran on every build at first; it was made opt-in the same day because it takes over Word for a moment and interrupted the user reading a document. Word exports the built report to PDF and the pages are checked: the cover is one page with its date and whole title, the logo page follows it, there is no blank page, and the contents pages match the spec. A problem fails the build with a plain message. Without macOS and Word, the step reports that the layout was not checked. The export runs on a copy without `updateFields`, whose "update fields?" prompt would otherwise block Word; it writes only to its own folder in Word's sandbox and deletes only the files it created, by explicit path.
+- **`include:` in the spec** switches off the table of contents, the acronyms page, or both (default: both on, so existing specs build as before). Blocks are located by structure, not by position.
+- **Line breaks in spec values**: `\n` in a value becomes a Word line break, e.g. a two-line title.
+- **Automatic size for the client line** (`cover_fit` in the profile): a "CLIENT, COUNTRY" line longer than about 38 characters is set smaller, down to 9 pt, so it never overflows the cover.
+- **Table page breaks controlled** (`keep_together_max_rows` in the profile): no table row is ever split across pages. Keeping whole tables of up to 30 rows on one page was tried first and turned off the same day because it left white space; see *New page-flow defaults* below.
+- **`acronyms:` in the spec** fills the acronyms table (sorted, placeholder highlight removed). When the acronyms page is included the list is required, and the build refuses any document that still contains the `###` placeholders.
+- **New page-flow defaults, to avoid white space** (user, 2026-10-15): Heading 1 no longer starts a new page and gets 24 pt of space above instead; tables may start on one page and continue on the next, with no row ever cut in two and the title line and header row kept with the first body row. Both are profile settings (`Heading1`, `table: keep_together_max_rows`); SKILL.md, *Page flow defaults*, says how to change them.
+- **`selftest.py`** builds the example in six configurations and checks each in Word. Run it after any change to the skill.
+
+### Fixed
+
+- **Cover spilling onto a second page.** The client line sat in a 2.7-inch cell and wrapped to three lines; the row grew and the date moved to page 2. The bottom row now spans the full width, both cover rows have an exact height, and the empty paragraphs around the cover table are 2 pt. Patch kept in `profiles/long_report/patches/2026-10-15_cover_fit.py`; the original front matter is `frontmatter_source_v1.docx`.
+- **Blank page before the body.** An empty paragraph after the front matter's last section break sat alone on a page, because the body's first heading starts a new page; a redundant manual page break sat in the same place. Both are removed at build time.
+
+### Evidence
+
+`selftest.py`: 6/6 configurations pass in Word, including a two-line title and an 80-character client line (set at 9 pt). The Matthew 6:3 financial proposal went from 16 pages (one of them a spilled cover page, one blank) to 12, every table on the page of its title. The layout check fails, as it should, on the proposal built with version 1.2.1.
+
+### Ported to the scaffold (2026-10-19)
+
+Copied from the Matthew 6:3 project into `project_template`. Project names in the example acronyms (`SKILL.md`, `templates/report_spec.yaml`) and in the `selftest.py` test values were replaced with neutral ones of the same length, so the client line still tests below and above the 38-character limit; `selftest.py` passed 6/6 in Word with the new values. `examples/README.md` no longer says Heading 1 starts its own page.
+
+---
+
 ## [1.2.1] — 2026-09-23
 
 ### Fixed

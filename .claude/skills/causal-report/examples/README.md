@@ -21,7 +21,7 @@ If this renders and validates, the pipeline works. It is the first thing to run 
 |---|---|
 | Cover | Title, client and date filled from `report_spec.yaml`, not `{{TOKENS}}` |
 | Footer | The subtitle, from a token that Word had split across three runs |
-| Headings | H1 19pt blue starting its own page · H2 15pt · H3 13pt · H4 red small caps · H5 black underlined small caps |
+| Headings | H1 19pt blue with 24 pt of space above (no page break) · H2 15pt · H3 13pt · H4 red small caps · H5 black underlined small caps |
 | Tables | Blue header row, white bold type, body rows banded white and pale blue — from a plain pipe table with no extra markup |
 | Equations | Native Word equations you can click into and edit, not images |
 | Table of contents | Empty until you click it and press **F9** — it is a live Word field |
